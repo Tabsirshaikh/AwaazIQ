@@ -1,0 +1,7 @@
+faster-whisper
+sentence-transformers
+spacy
+regex
+geopy
+fastapi
+rapidfuzz
