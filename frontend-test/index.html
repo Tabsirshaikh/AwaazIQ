@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Pipeline Test Console</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 720px; margin: 40px auto; padding: 0 16px; color: #222; }
+  h1 { font-size: 20px; margin-bottom: 4px; }
+  .sub { color: #666; font-size: 13px; margin-bottom: 28px; }
+  .panel { border: 1px solid #ddd; border-radius: 8px; padding: 18px; margin-bottom: 20px; }
+  .panel h2 { font-size: 15px; margin: 0 0 12px; }
+  .panel.disabled { opacity: 0.55; }
+  input[type="text"] { width: 100%; box-sizing: border-box; padding: 8px; font-size: 14px; border: 1px solid #ccc; border-radius: 4px; margin-bottom: 10px; }
+  input[type="file"] { margin-bottom: 10px; }
+  button { padding: 8px 16px; font-size: 14px; border: none; border-radius: 4px; background: #2f6feb; color: white; cursor: pointer; }
+  button:hover:not(:disabled) { background: #1f5fd9; }
+  button:disabled { background: #aaa; cursor: not-allowed; }
+  .result { margin-top: 12px; padding: 10px; background: #f5f5f5; border-radius: 4px; font-size: 14px; min-height: 20px; white-space: pre-wrap; word-break: break-word; }
+  .result:empty::before { content: "(no result yet)"; color: #999; }
+  .spinner { display: none; margin-top: 10px; font-size: 13px; color: #666; }
+  .spinner.active { display: block; }
+  .error { color: #c0392b; }
+  #record-btn.recording { background: #c0392b; }
+  #record-status { margin-left: 10px; font-size: 13px; color: #666; }
+</style>
+</head>
+<body>
+  <h1>Pipeline Test Console</h1>
+  <div class="sub">Internal dev tool for testing backend pipeline functions. Backend must be running at http://localhost:8000.</div>
+
+  <div class="panel">
+    <h2>Language Detection</h2>
+    <input type="text" id="lang-input" placeholder="Type text to detect language (Marathi / Hindi / English)...">
+    <button id="lang-btn">Detect</button>
+    <div class="result" id="lang-result"></div>
+  </div>
+
+  <div class="panel">
+    <h2>Speech to Text</h2>
+    <button id="record-btn">Start Recording</button>
+    <span id="record-status"></span>
+    <div class="spinner" id="audio-spinner">Transcribing... this can take a few seconds.</div>
+    <div class="result" id="audio-result"></div>
+  </div>
+
+  <div class="panel disabled">
+    <h2>Full Pipeline Test</h2>
+    <button disabled>Coming soon</button>
+  </div>
+
+<script>
+const API_BASE = "http://localhost:8000";
+
+document.getElementById("lang-btn").addEventListener("click", async () => {
+  const text = document.getElementById("lang-input").value;
+  const resultEl = document.getElementById("lang-result");
+  resultEl.textContent = "...";
+  try {
+    const res = await fetch(`${API_BASE}/test/detect-language`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text }),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    resultEl.textContent = data.language;
+    resultEl.classList.remove("error");
+  } catch (err) {
+    resultEl.textContent = `Error: ${err.message}`;
+    resultEl.classList.add("error");
+  }
+});
+
+const recordBtn = document.getElementById("record-btn");
+const recordStatus = document.getElementById("record-status");
+const audioResult = document.getElementById("audio-result");
+const audioSpinner = document.getElementById("audio-spinner");
+
+let mediaRecorder = null;
+let audioChunks = [];
+let isRecording = false;
+
+recordBtn.addEventListener("click", async () => {
+  if (isRecording) {
+    mediaRecorder.stop();
+    return;
+  }
+
+  audioResult.textContent = "";
+  audioResult.classList.remove("error");
+
+  let stream;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  } catch (err) {
+    audioResult.textContent = `Microphone access denied or unavailable: ${err.message}`;
+    audioResult.classList.add("error");
+    return;
+  }
+
+  audioChunks = [];
+  mediaRecorder = new MediaRecorder(stream);
+
+  mediaRecorder.addEventListener("dataavailable", (e) => {
+    if (e.data.size > 0) audioChunks.push(e.data);
+  });
+
+  mediaRecorder.addEventListener("stop", async () => {
+    stream.getTracks().forEach((track) => track.stop());
+    isRecording = false;
+    recordBtn.textContent = "Start Recording";
+    recordBtn.classList.remove("recording");
+    recordStatus.textContent = "";
+
+    const blob = new Blob(audioChunks, { type: mediaRecorder.mimeType });
+    await sendForTranscription(blob);
+  });
+
+  mediaRecorder.start();
+  isRecording = true;
+  recordBtn.textContent = "Stop Recording";
+  recordBtn.classList.add("recording");
+  recordStatus.textContent = "Recording... speak now";
+});
+
+async function sendForTranscription(blob) {
+  const ext = blob.type.includes("webm") ? "webm" : "wav";
+  const formData = new FormData();
+  formData.append("file", blob, `recording.${ext}`);
+
+  audioSpinner.classList.add("active");
+  try {
+    const res = await fetch(`${API_BASE}/test/transcribe`, {
+      method: "POST",
+      body: formData,
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    audioResult.textContent = data.transcription || "(empty transcription)";
+  } catch (err) {
+    audioResult.textContent = `Error: ${err.message}`;
+    audioResult.classList.add("error");
+  } finally {
+    audioSpinner.classList.remove("active");
+  }
+}
+</script>
+</body>
+</html>

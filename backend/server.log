@@ -1,0 +1,50 @@
+INFO:     Started server process [29480]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+INFO:     127.0.0.1:57538 - "POST /citizen-report HTTP/1.1" 400 Bad Request
+INFO:     127.0.0.1:57539 - "POST /citizen-report HTTP/1.1" 400 Bad Request
+INFO:     127.0.0.1:57540 - "POST /citizen-report HTTP/1.1" 400 Bad Request
+INFO:     127.0.0.1:57541 - "POST /citizen-report HTTP/1.1" 400 Bad Request
+INFO:     127.0.0.1:57542 - "POST /citizen-report HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57546 - "POST /citizen-report HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57547 - "POST /citizen-report HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57548 - "POST /citizen-report HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57549 - "POST /citizen-report HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57550 - "POST /citizen-report HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57551 - "POST /citizen-report HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57552 - "POST /citizen-report HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57553 - "POST /citizen-report HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57554 - "POST /citizen-report HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57555 - "POST /citizen-report HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57556 - "POST /citizen-report HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57557 - "POST /citizen-report HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57558 - "POST /citizen-report HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57559 - "POST /citizen-report HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57560 - "POST /citizen-report HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57561 - "POST /citizen-report HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57562 - "POST /citizen-report HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57563 - "POST /citizen-report HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57564 - "POST /citizen-report HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57565 - "POST /citizen-report HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57566 - "POST /citizen-report HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63567 - "GET /complaints HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:51318 - "POST /citizen-report HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51320 - "POST /citizen-report HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51322 - "POST /citizen-report HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51324 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51325 - "GET /clusters HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51326 - "GET /map-data HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51327 - "GET /citizen-reports HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51328 - "POST /what-if HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51329 - "POST /test/detect-language HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51330 - "GET /map-data HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51332 - "GET /map-data HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51313 - "GET /complaints HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:62723 - "GET /complaints HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:56514 - "GET /complaints HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:53572 - "GET /complaints HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:50880 - "GET /complaints HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:63733 - "GET /complaints HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:57140 - "GET /complaints HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:49708 - "GET /complaints HTTP/1.1" 404 Not Found

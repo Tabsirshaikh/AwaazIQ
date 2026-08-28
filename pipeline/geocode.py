@@ -1,4 +1,4 @@
-from rapidfuzz import process, fuzz
+from rapidfuzz import fuzz, process
 
 
 def resolve_location(
@@ -38,7 +38,7 @@ def resolve_location(
         "district": row["district"],
         "block": row["block"],
         "village": row["name"],
-        "lat": row["lat"],
-        "lon": row["lon"],
+        "latitude": row["latitude"],
+        "longitude": row["longitude"],
         "confidence": round(score / 100, 2)
     }

@@ -1,12 +1,24 @@
-from .lang_id import detect_language
-from .asr import transcribe
-from .normalize import normalize_text
+from .language_detector import detect_language
+from .speech_to_text import transcribe_audio
+from .text_normalizer import normalize_text
 from .extract import (
     extract_issue_category,
     extract_severity
 )
 from .location import extract_location_phrase
 from .geocode import resolve_location
+
+# --- Confidence tuning knobs -------------------------------------------
+# Kept at module level so they're visible and changeable without reading
+# through the function body.
+CONFIDENCE_WITH_CATEGORY = 0.9
+CONFIDENCE_NO_CATEGORY = 0.3
+CONFIDENCE_NO_LOCATION = 0.2
+LOW_CONFIDENCE_THRESHOLD = 0.5
+DECAY_PER_EXTRA_LOW_FIELD = 0.85
+# -----------------------------------------------------------------------
+
+
 def process_report(
     input_data: dict,
     gazetteer_rows: list[dict]
@@ -19,7 +31,7 @@ def process_report(
     is_audio = "audio_path" in input_data
 
     if is_audio:
-        raw_text = transcribe(
+        raw_text = transcribe_audio(
             input_data["audio_path"]
         )
     else:
@@ -80,20 +92,31 @@ def process_report(
     # -------------------------
     # 8. CONFIDENCE
     # -------------------------
+    # Averaging alone understates risk when several extraction steps are
+    # ALL uncertain at once (vs. just one weak field) -- a record with no
+    # recognized issue AND no resolved location is much less trustworthy
+    # than the simple average of its two scores suggests. When more than
+    # one field is below LOW_CONFIDENCE_THRESHOLD, apply a multiplicative
+    # decay on top of the average, once per extra low field.
 
     field_scores = [
-        0.9 if issue_category else 0.3,
+        CONFIDENCE_WITH_CATEGORY if issue_category else CONFIDENCE_NO_CATEGORY,
         (
             location_resolved["confidence"]
             if location_resolved
-            else 0.2
+            else CONFIDENCE_NO_LOCATION
         )
     ]
 
-    confidence_overall = round(
-        sum(field_scores) / len(field_scores),
-        2
+    base_confidence = sum(field_scores) / len(field_scores)
+
+    low_fields = sum(
+        1 for score in field_scores if score < LOW_CONFIDENCE_THRESHOLD
     )
+    if low_fields > 1:
+        base_confidence *= DECAY_PER_EXTRA_LOW_FIELD ** (low_fields - 1)
+
+    confidence_overall = round(base_confidence, 2)
 
 
     # -------------------------
