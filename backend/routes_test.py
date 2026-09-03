@@ -12,8 +12,8 @@ from pydantic import BaseModel
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from pipeline.language_detector import detect_language  # noqa: E402
-from pipeline.speech_to_text import transcribe_audio  # noqa: E402
+from pipeline.lang_id import detect_language  # noqa: E402
+from pipeline.asr import transcribe as transcribe_audio  # noqa: E402
 
 router = APIRouter(prefix="/test")
 

@@ -5,3 +5,7 @@ regex
 geopy
 fastapi
 rapidfuzz
+uvicorn[standard]
+python-multipart
+httpx
+pytest
