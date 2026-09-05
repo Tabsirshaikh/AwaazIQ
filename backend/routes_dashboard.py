@@ -26,6 +26,13 @@ def _latest_score_by_cluster(db: Session) -> dict[int, PriorityScore]:
 
 
 def _serialize_cluster(cluster: DemandCluster, score: PriorityScore | None) -> dict:
+    breakdown = None
+    if score and score.breakdown:
+        try:
+            breakdown = json.loads(score.breakdown)
+        except (TypeError, ValueError):
+            breakdown = score.breakdown
+
     return {
         "id": cluster.id,
         "issue_category": cluster.issue_category,
@@ -34,7 +41,16 @@ def _serialize_cluster(cluster: DemandCluster, score: PriorityScore | None) -> d
         "report_count": cluster.report_count,
         "unique_reporters": cluster.unique_reporters,
         "population_affected": cluster.population_affected,
+        # Added with P3 so the dashboard can label and compare clusters
+        # without a second round-trip -- the Cluster A vs B screen needs
+        # every one of these fields on one row.
+        "district": cluster.district,
+        "block": cluster.block,
+        "settlement_count": cluster.settlement_count,
+        "avg_confidence": cluster.avg_confidence,
         "priority_score": score.priority_score if score else None,
+        "breakdown": breakdown,
+        "runner_up_cluster_id": score.runner_up_cluster_id if score else None,
     }
 
 
@@ -90,7 +106,43 @@ def get_cluster(cluster_id: int, db: Session = Depends(get_db)):
 
 
 @router.get("/map-data")
-def get_map_data(db: Session = Depends(get_db)):
+def get_map_data(
+    layer: str = Query("clusters", pattern="^(clusters|reports)$"),
+    db: Session = Depends(get_db),
+):
+    """
+    GeoJSON for Leaflet.
+
+    layer=clusters (default) is what the build plan asks for -- one feature
+    per scored cluster, sized/coloured by priority_score. layer=reports
+    returns the individual citizen reports instead, which is what the demo's
+    "watch a thousand reports land, then watch clusters form" beat needs.
+    """
+    if layer == "clusters":
+        scores_by_cluster = _latest_score_by_cluster(db)
+        clusters = (
+            db.query(DemandCluster)
+            .filter(
+                DemandCluster.centroid_lat.isnot(None),
+                DemandCluster.centroid_lon.isnot(None),
+            )
+            .all()
+        )
+        return {
+            "type": "FeatureCollection",
+            "features": [
+                {
+                    "type": "Feature",
+                    "geometry": {
+                        "type": "Point",
+                        "coordinates": [c.centroid_lon, c.centroid_lat],
+                    },
+                    "properties": _serialize_cluster(c, scores_by_cluster.get(c.id)),
+                }
+                for c in clusters
+            ],
+        }
+
     rows = (
         db.query(CitizenRequest)
         .filter(
@@ -112,6 +164,8 @@ def get_map_data(db: Session = Depends(get_db)):
                 "severity": row.severity,
                 "district": row.district,
                 "village": row.village,
+                "cluster_id": row.cluster_id,
+                "is_synthetic": row.is_synthetic,
                 "created_at": row.created_at,
             },
         }
@@ -129,17 +183,26 @@ class WhatIfRequest(BaseModel):
 @router.post("/what-if")
 def what_if(payload: WhatIfRequest, db: Session = Depends(get_db)):
     """
-    STUB, per the build plan (P2 Step 7): P3's re-ranking function
-    (recompute_with_budget) doesn't exist yet, since P3 hasn't started.
-    Returns the current cluster ranking completely unchanged, so P4 can
-    build and test against the real response shape now rather than being
-    blocked. Swap the body for a call to P3's function once it's delivered.
+    Live, no longer a stub: calls P3's recompute_with_budget (build plan P2
+    Step 7 / P3 Step 9).
+
+    Re-scores every cluster as if `district` had received `budget_delta`
+    extra rupees and returns the re-sorted ranking. Each row carries both the
+    new and baseline score plus the delta, so the dashboard can animate what
+    actually moved. Clusters are NOT re-clustered -- what is broken does not
+    change because money moved, only what is fundable does.
     """
+    from intelligence.whatif import recompute_with_budget
+
+    clusters = recompute_with_budget(db, payload.budget_delta, payload.district)
+    moved = [c for c in clusters if c["score_delta"] != 0]
+
     return {
         "budget_delta": payload.budget_delta,
         "district": payload.district,
-        "clusters": list_clusters(db),
-        "stub": True,
+        "clusters": clusters,
+        "clusters_affected": len(moved),
+        "stub": False,
     }
 
 

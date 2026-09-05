@@ -95,19 +95,30 @@ SEVERITY_LOW_KEYWORDS = [
 
 def extract_issue_category(text: str) -> str | None:
     """
-    Match text against the ISSUE_KEYWORDS dictionary.
-    Returns the first matching category or None.
-    Checks longer keywords before shorter ones to avoid false-partial matches.
+    Match text against ISSUE_KEYWORDS and return the category with the MOST
+    keyword hits. Declaration order breaks genuine ties, so a report that
+    really is ambiguous behaves exactly as it did before.
+
+    Returning the *first* category with any hit -- the previous behaviour --
+    made the answer depend on dictionary declaration order rather than on the
+    text. "sadak ke paas hospital hai lekin doctor nahi, clinic bhi band hai"
+    came back as `road` on a single incidental mention of a road, beating
+    three health keywords, purely because road is declared first. The report
+    is plainly about health.
     """
     t = text.lower()
 
-    # Sort each category's list by length desc so multi-word phrases match first
-    for category, keywords in ISSUE_KEYWORDS.items():
-        sorted_kws = sorted(keywords, key=len, reverse=True)
-        if any(kw.lower() in t for kw in sorted_kws):
-            return category
+    best_category: str | None = None
+    best_hits = 0
 
-    return None
+    for category, keywords in ISSUE_KEYWORDS.items():
+        hits = sum(1 for kw in keywords if kw.lower() in t)
+        # Strictly greater keeps declaration order as the tie-break.
+        if hits > best_hits:
+            best_hits = hits
+            best_category = category
+
+    return best_category
 
 
 def extract_severity(

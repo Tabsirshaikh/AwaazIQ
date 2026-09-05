@@ -13,10 +13,14 @@ language/category/severity/location come out exactly as they would for a
 real citizen report -- this also doubles as a load test of the pipeline at
 volume.
 
-Covers all 6 issue categories the pipeline currently supports (road, water,
-electricity, sanitation, health, education) -- broader than the build
-plan's Hour-0 "start with just Roads + Water" scoping note, since P1 had
-already built keyword support for all 6 by the time this ran.
+Covers exactly the four frozen demo categories -- road, water, health,
+education (research report SS19.1's MVP scope). An earlier version also
+generated electricity and sanitation templates on the mistaken belief that
+the pipeline classified 6 categories; pipeline/extract.py only ever had
+keyword dictionaries for these 4, so a third of every seeded batch landed
+in the database with issue_category = NULL and could never be clustered or
+scored. Do not add a category here without adding its keyword dictionary to
+pipeline/extract.py in the same change.
 """
 
 import random
@@ -54,20 +58,6 @@ TEMPLATES = {
         "पाणी पुरवठा बंद आहे {village} जवळ",
         "पानी की गंभीर समस्या है {village} गांव में",
     ],
-    "electricity": [
-        "bijli bahut baar jati hai near {village}",
-        "current nahi hai kal se {village} gaon mein",
-        "power cut near {village} for two days now",
-        "वीज गायब आहे {village} जवळ रोज",
-        "बिजली नहीं आ रही है {village} गांव में",
-    ],
-    "sanitation": [
-        "kachra bahut din se nahi utha near {village}",
-        "garbage collection has stopped near {village}",
-        "naali choked hai {village} gaon mein",
-        "कचरा उचलला जात नाही {village} जवळ",
-        "कचरा पड़ा है {village} गांव में",
-    ],
     "health": [
         "hospital bahut door hai near {village}",
         "doctor nahi hai {village} gaon mein",
@@ -102,13 +92,16 @@ def load_weighted_village_names(db) -> list[dict]:
 
 
 def load_gazetteer_rows(db) -> list[dict]:
+    # "lat"/"lon" -- must match what pipeline.geocode reads and what the build
+    # plan's Interface Contract specifies. See the same note in
+    # routes_citizen_report._load_gazetteer_rows.
     return [
         {
             "name": row.name,
             "district": row.district,
             "block": row.block,
-            "latitude": row.latitude,
-            "longitude": row.longitude,
+            "lat": row.latitude,
+            "lon": row.longitude,
         }
         for row in db.query(Gazetteer).all()
     ]
@@ -140,6 +133,19 @@ def main():
 
     gazetteer_rows = load_gazetteer_rows(db)
 
+    # Re-runnable, the same way load_gazetteer.py is: clear the previous
+    # synthetic batch first, so re-seeding refreshes the demo dataset instead
+    # of stacking a second 1,000 rows on top of the first. Real (non-synthetic)
+    # reports are never touched.
+    removed = (
+        db.query(CitizenRequest)
+        .filter(CitizenRequest.is_synthetic.is_(True))
+        .delete(synchronize_session=False)
+    )
+    db.commit()
+    if removed:
+        print(f"Cleared {removed} rows from the previous synthetic batch.")
+
     inserted = 0
     category_counts: dict[str | None, int] = {}
     district_counts: dict[str | None, int] = {}
@@ -158,8 +164,8 @@ def main():
             district=location_resolved.get("district"),
             block=location_resolved.get("block"),
             village=location_resolved.get("village"),
-            latitude=location_resolved.get("latitude"),
-            longitude=location_resolved.get("longitude"),
+            latitude=location_resolved.get("lat"),
+            longitude=location_resolved.get("lon"),
             confidence=result["confidence_overall"],
             is_synthetic=True,
         )

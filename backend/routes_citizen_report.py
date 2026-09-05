@@ -60,13 +60,18 @@ def _load_gazetteer_rows(db: Session) -> list[dict]:
 
     count = db.query(Gazetteer).count()
     if _gazetteer_cache is None or count != _gazetteer_cache_count:
+        # Keys must be "lat"/"lon" -- that is what pipeline.geocode reads, and
+        # what the build plan's Interface Contract (Section 2) specifies for
+        # location_resolved. Naming them latitude/longitude here silently threw
+        # away every coordinate: geocode's row.get("lat") returned None for all
+        # 1,000+ reports, leaving /map-data permanently empty.
         _gazetteer_cache = [
             {
                 "name": row.name,
                 "district": row.district,
                 "block": row.block,
-                "latitude": row.latitude,
-                "longitude": row.longitude,
+                "lat": row.latitude,
+                "lon": row.longitude,
             }
             for row in db.query(Gazetteer).all()
         ]
@@ -90,6 +95,10 @@ def serialize_citizen_request(citizen_request: CitizenRequest) -> dict:
         "longitude": citizen_request.longitude,
         "confidence": citizen_request.confidence,
         "is_synthetic": citizen_request.is_synthetic,
+        # Which demand cluster this report was folded into, once P3 has run.
+        # This is what powers the citizen feedback loop: "your report
+        # contributed to Cluster N, currently ranked #M".
+        "cluster_id": citizen_request.cluster_id,
         "created_at": citizen_request.created_at,
     }
 
@@ -155,8 +164,8 @@ async def create_citizen_report(request: Request, db: Session = Depends(get_db))
             district=location_resolved.get("district"),
             block=location_resolved.get("block"),
             village=location_resolved.get("village"),
-            latitude=location_resolved.get("latitude"),
-            longitude=location_resolved.get("longitude"),
+            latitude=location_resolved.get("lat"),
+            longitude=location_resolved.get("lon"),
             confidence=result["confidence_overall"],
             is_synthetic=result["is_synthetic"],
         )

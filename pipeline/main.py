@@ -8,7 +8,7 @@ P1 spec and returns a StructuredRecord matching the Interface Contract
 
 from __future__ import annotations
 
-from .lang_id  import detect_language
+from .lang_id  import detect_language, is_supported
 from .asr      import transcribe
 from .normalize import normalize_text
 from .extract  import extract_issue_category, extract_severity
@@ -24,7 +24,17 @@ def _language_confidence(language: str) -> float:
     """
     Rough confidence for the language detection step.
     'mixed' and 'hi-Latn' have slightly lower certainty than a clear script.
+
+    A language the pipeline has no keyword dictionaries for (Tamil, Telugu,
+    Bengali, ...) scores very low on purpose: the script was identified
+    correctly, but nothing downstream can actually read it, so the record
+    must carry that doubt rather than look as trustworthy as a Hindi one.
+    The confidence gate in the priority engine then damps it, and the
+    low-confidence value is the signal to route it to human review.
     """
+    if not is_supported(language):
+        return 0.15
+
     return {
         "hi-Deva": 0.95,
         "mr-Deva": 0.95,

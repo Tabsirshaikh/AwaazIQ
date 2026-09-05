@@ -6,3 +6,8 @@ venv/
 *.db
 *.db-wal
 *.db-shm
+
+# Runtime noise and regenerable caches
+*.log
+*.pid
+backend/jjm_cache.json
