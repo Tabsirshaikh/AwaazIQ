@@ -78,11 +78,19 @@
     };
   }
 
-  /** Transform for a point (used when diving into a single cluster). */
-  function pointTransform(lon, lat, k) {
+  /** Transform for a point (used when diving into a single cluster).
+   *  `rightInset` is the width of any panel covering the right edge, so the
+   *  point is centred in what the user can actually see. */
+  function pointTransform(lon, lat, k, rightInset = 0) {
     const [px, py] = projection([lon, lat]);
-    return { k, x: width / 2 - k * px, y: height / 2 - k * py };
+    return {
+      k,
+      x: (width - rightInset) / 2 - k * px,
+      y: height / 2 - k * py,
+    };
   }
+
+  const PANEL_W = 392;
 
   /**
    * Animate #viewport to a target transform.
@@ -194,6 +202,157 @@
       d.append("div").attr("class", "stat__value").text(s.v);
       d.append("div").attr("class", "stat__label").text(s.l);
     });
+  }
+
+  /* ---------------------------------------------------------- detail panel -- */
+
+  // Human labels and provenance for the nine scoring terms. The source line
+  // matters as much as the number: it is what turns "trust the score" into
+  // "audit the score".
+  const TERMS = [
+    ["demand",        "Citizen demand",         "distinct reporters, capped at 25"],
+    ["population",    "Population affected",    "Census + PMGSY habitations, log-scaled"],
+    ["infra_deficit", "Infrastructure deficit", "measured against the scheme's own norm"],
+    ["vulnerability", "Deprivation",            "isolation, power hours, drainage, access"],
+    ["equity",        "Equity — silent need",   "BharatNet 2022 fibre status"],
+    ["strategic",     "Scheme eligibility",     "PMGSY / IPHS / RTE / JJM rules"],
+    ["urgency",       "Urgency",                "recorded seasonal failure"],
+    ["feasibility",   "Feasibility",            "Census distance to headquarters"],
+    ["cost_penalty",  "Cost penalty",           "scaled by catchment population"],
+  ];
+
+  function rankOf(cluster) {
+    const ordered = clusters
+      .slice()
+      .sort((a, b) => (b.priority_score ?? -1) - (a.priority_score ?? -1));
+    return ordered.findIndex((c) => c.id === cluster.id) + 1;
+  }
+
+  function closePanel() {
+    d3.select("#panel").classed("panel--open", false);
+  }
+
+  function renderPanel(c) {
+    const panel = d3.select("#panel");
+    const b = c.breakdown || {};
+    const maxAbs = d3.max(TERMS, ([k]) => Math.abs(b[k] || 0)) || 1;
+    const sum = TERMS.reduce((acc, [k]) => acc + (b[k] || 0), 0);
+    const runner = clusters.find((x) => x.id === c.runner_up_cluster_id);
+
+    panel.html("");
+
+    /* -- head -- */
+    const head = panel.append("div").attr("class", "panel__head");
+    head.append("button")
+      .attr("class", "panel__close")
+      .attr("aria-label", "Close detail")
+      .html("&times;")
+      .on("click", () => navigate("district", { state: nav.state, district: nav.district }));
+    head.append("span").attr("class", "panel__cat").text(c.issue_category || "—");
+    head.append("div").attr("class", "panel__title").text(c.block || c.district || `Cluster ${c.id}`);
+    head.append("div").attr("class", "panel__sub")
+      .text(`${c.district} district · cluster ${c.id}`);
+
+    const row = head.append("div").attr("class", "panel__scorerow");
+    row.append("div").attr("class", "panel__score")
+      .text((c.priority_score ?? 0).toFixed(2));
+    row.append("div").attr("class", "panel__scoreof").text("/ 100");
+    row.append("div").attr("class", "panel__rank").text(`RANK #${rankOf(c)} OF ${clusters.length}`);
+
+    /* -- body -- */
+    const body = panel.append("div").attr("class", "panel__body");
+
+    const facts = body.append("div").attr("class", "panel__section")
+      .append("div").attr("class", "facts");
+    [
+      [fmt(c.report_count ?? 0), "citizen reports"],
+      [fmt(c.unique_reporters ?? 0), "distinct reporters"],
+      [fmt(c.population_affected ?? 0), "people affected"],
+      [fmt(c.settlement_count ?? 0), "settlements"],
+    ].forEach(([v, l]) => {
+      const f = facts.append("div").attr("class", "fact");
+      f.append("div").attr("class", "fact__v").text(v);
+      f.append("div").attr("class", "fact__l").text(l);
+    });
+
+    /* -- the nine terms -- */
+    const sec = body.append("div").attr("class", "panel__section");
+    sec.append("div").attr("class", "eyebrow panel__sectionhead").text("Why this score");
+    sec.append("div").attr("class", "panel__hint")
+      .text("Nine independently-sourced terms. They sum to the score exactly — " +
+            "nothing is hidden in a model.");
+
+    TERMS.forEach(([key, label, source]) => {
+      const val = b[key] ?? 0;
+      const t = sec.append("div").attr("class", "term");
+      const r = t.append("div").attr("class", "term__row");
+      r.append("span").attr("class", "term__name").text(label);
+      r.append("span")
+        .attr("class", `term__val${val < 0 ? " term__val--neg" : ""}`)
+        .text(`${val > 0 ? "+" : ""}${val.toFixed(2)}`);
+      const bar = t.append("div").attr("class", "term__track")
+        .append("div")
+        .attr("class", `term__bar${val < 0 ? " term__bar--neg" : val === 0 ? " term__bar--zero" : ""}`);
+      // Width animates from 0 on the next frame so the panel "fills in".
+      requestAnimationFrame(() => {
+        bar.style("width", `${Math.max(Math.abs(val) / maxAbs * 100, val === 0 ? 2 : 4)}%`);
+      });
+      t.append("div").attr("class", "term__src").text(source);
+    });
+
+    const sl = sec.append("div").attr("class", "sumline");
+    sl.append("span").attr("class", "sumline__l").text("Sum of all nine terms");
+    sl.append("span").attr("class", "sumline__v").text(sum.toFixed(2));
+
+    /* -- counterfactual -- */
+    if (runner) {
+      const rs = body.append("div").attr("class", "panel__section");
+      rs.append("div").attr("class", "eyebrow panel__sectionhead").text("Why not the runner-up");
+      rs.append("div").attr("class", "panel__hint")
+        .text("The next cluster down, and exactly which terms separate them.");
+
+      const card = rs.append("div").attr("class", "runnerup");
+      card.append("div").attr("class", "runnerup__name")
+        .text(`${runner.block || runner.district} · ${runner.issue_category}`);
+      card.append("div").attr("class", "runnerup__score")
+        .text(`${(runner.priority_score ?? 0).toFixed(2)} / 100 · ` +
+              `${runner.report_count} reports · ${fmt(runner.population_affected || 0)} people`);
+
+      const rb = runner.breakdown || {};
+      const diffs = TERMS
+        .map(([k, label]) => ({ label, d: (b[k] || 0) - (rb[k] || 0) }))
+        .filter((x) => Math.abs(x.d) >= 0.5)
+        .sort((a, b2) => Math.abs(b2.d) - Math.abs(a.d))
+        .slice(0, 4);
+
+      const list = card.append("div").attr("class", "runnerup__diffs");
+      if (diffs.length) {
+        diffs.forEach((x) => {
+          const d = list.append("div").attr("class", "diff");
+          d.append("span").attr("class", "diff__n").text(x.label);
+          d.append("span")
+            .attr("class", `diff__v diff__v--${x.d > 0 ? "up" : "down"}`)
+            .text(`${x.d > 0 ? "+" : ""}${x.d.toFixed(2)}`);
+        });
+      } else {
+        list.append("div").attr("class", "diff")
+          .append("span").attr("class", "diff__n")
+          .text("The two are separated by less than half a point on every term.");
+      }
+
+      card.append("button").attr("class", "runnerup__btn")
+        .text("VIEW THIS CLUSTER →")
+        .on("click", () => {
+          if (runner.district !== nav.district) {
+            navigate("district", { state: PILOT_STATE, district: runner.district })
+              .then(() => navigate("cluster", { cluster: runner }));
+          } else {
+            navigate("cluster", { cluster: runner });
+          }
+        });
+    }
+
+    panel.classed("panel--open", true);
   }
 
   /** Clusters in scope for the current level. */
@@ -320,6 +479,7 @@
     hideTip();
 
     if (level === "india") {
+      closePanel();
       Object.assign(nav, { level, state: null, district: null, cluster: null });
       gDistricts.selectAll("path").remove();
       gReports.selectAll("circle").remove();
@@ -335,6 +495,7 @@
     }
 
     if (level === "state") {
+      closePanel();
       Object.assign(nav, { level, state: opts.state, district: null, cluster: null });
       gStates.selectAll("path").remove();
       gReports.selectAll("circle").remove();
@@ -355,6 +516,7 @@
     }
 
     if (level === "district") {
+      closePanel();
       Object.assign(nav, { level, state: opts.state, district: opts.district, cluster: null });
       const feat = districtsFC.features.find(
         (d) => d.properties.st_nm === opts.state && d.properties.district === opts.district);
@@ -375,10 +537,11 @@
     if (level === "cluster") {
       Object.assign(nav, { level, cluster: opts.cluster });
       const c = opts.cluster;
-      view = pointTransform(c.centroid_lon, c.centroid_lat, view.k * 3.2);
+      view = pointTransform(c.centroid_lon, c.centroid_lat, view.k * 3.2, PANEL_W);
       drawClusters(clusters.filter((x) => x.district === nav.district));
       gClusters.selectAll("circle").classed("cluster--faded", (d) => d.id !== c.id);
       animateTo(view);
+      renderPanel(c);
       d3.select("#legendNote").text(
         `Cluster ${c.id} — ${c.report_count} reports from ${c.unique_reporters} ` +
         `distinct reporters, affecting ~${fmt(c.population_affected || 0)} people.`);
