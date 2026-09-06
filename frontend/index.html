@@ -15,15 +15,17 @@
       <span class="brand__name">AwaazIQ</span>
       <span class="brand__tag">From Citizen Voice to Intelligent Action</span>
     </div>
+    <span class="role role--admin">Officials</span>
     <div class="topbar__spacer"></div>
-    <button class="btn btn--primary" id="btnReport" style="flex:0 0 auto;padding:9px 16px">
-      + REPORT AN ISSUE
-    </button>
     <span class="eyebrow">Development Intelligence Engine</span>
     <div class="coverage">
       <span class="coverage__dot"></span>
       <span id="coverageText">Pilot coverage — 2 districts</span>
     </div>
+    <a class="rolelink" href="report.html" id="citizenLink">File a complaint&nbsp;&rsaquo;</a>
+    <button class="btn btn--primary" id="btnRecompute" style="flex:0 0 auto;padding:9px 16px">
+      RUN CLUSTERING
+    </button>
   </header>
 
   <aside class="rail" id="rail">
@@ -84,42 +86,7 @@
 
     <section class="compare" id="compare" aria-label="Cluster comparison"></section>
 
-    <section class="intake" id="intake" aria-label="File a citizen report">
-      <div class="intake__box">
-        <div class="intake__head">
-          <div>
-            <div class="eyebrow">Citizen intake</div>
-            <div class="intake__title">Report a problem in your area</div>
-          </div>
-          <button class="sheet__close" id="intakeClose" aria-label="Close">&times;</button>
-        </div>
-
-        <div class="intake__stage" id="intakeForm">
-          <p class="intake__lead">
-            Type in any language — Hindi, Marathi, English or a mix. The same
-            pipeline that processed the other 1,000 reports will read this one.
-          </p>
-          <textarea id="intakeText" rows="3"
-            placeholder="e.g. hamare gaon mein sadak bahut kharab hai near Ajra"></textarea>
-          <div class="intake__samples" id="intakeSamples"></div>
-          <div class="intake__actions">
-            <label class="intake__file">
-              <input type="file" id="intakeAudio" accept="audio/*" hidden />
-              <span id="intakeAudioLabel">🎙 or upload audio</span>
-            </label>
-            <button class="btn btn--primary" id="intakeSubmit" style="flex:0 0 190px">
-              SUBMIT REPORT
-            </button>
-          </div>
-        </div>
-
-        <div class="intake__stage" id="intakeRun" hidden>
-          <div class="steps" id="intakeSteps"></div>
-        </div>
-
-        <div class="intake__stage" id="intakeDone" hidden></div>
-      </div>
-    </section>
+    <div class="toast" id="toast" role="status" hidden></div>
 
     <div class="tooltip" id="tooltip" role="status"></div>
 

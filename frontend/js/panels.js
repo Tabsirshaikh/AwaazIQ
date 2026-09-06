@@ -280,199 +280,60 @@
     }
   }
 
-  /* --------------------------------------------------------------- intake -- */
-
-  // Real sentences in the registers the pipeline is built for: Devanagari
-  // Hindi, Marathi, and romanised code-mixed Hinglish.
-  const SAMPLES = [
-    "hamare gaon mein sadak bahut kharab hai near Ajra",
-    "पाणी पुरवठा बंद आहे Bhudargad जवळ",
-    "अस्पताल बहुत दूर है Chandgad गांव में",
-    "school mein shikshak nahi hai near Kagal",
-  ];
-
-  // The backend does the whole pipeline in one call, so these stages are a
-  // faithful description of what it runs -- not a fake progress bar. Each is
-  // marked done as soon as the response confirms that field came back.
-  const STEPS = [
-    ["Language & script ID", (r) => r.language_detected],
-    ["Text normalization", () => true],
-    ["Issue & severity extraction", (r) => r.issue_category],
-    ["Location extraction", (r) => r.location_raw],
-    ["Geocoding against gazetteer", (r) => r.village],
-    ["PII redaction", () => true],
-  ];
-
-  function openIntake() {
-    d3.select("#intake").classed("intake--open", true);
-    document.getElementById("intakeForm").hidden = false;
-    document.getElementById("intakeRun").hidden = true;
-    document.getElementById("intakeDone").hidden = true;
-    document.getElementById("intakeText").focus();
-  }
-  function closeIntake() { d3.select("#intake").classed("intake--open", false); }
-
-  function renderSamples() {
-    const el = d3.select("#intakeSamples");
-    el.selectAll("*").remove();
-    SAMPLES.forEach((s) => {
-      el.append("button").attr("class", "sample").text(s)
-        .on("click", () => { document.getElementById("intakeText").value = s; });
-    });
-  }
-
-  function renderSteps(result) {
-    const el = d3.select("#intakeSteps");
-    el.selectAll("*").remove();
-    STEPS.forEach(([label, check], i) => {
-      const done = result ? !!check(result) : false;
-      const row = el.append("div")
-        .attr("class", `step${result ? (done ? " step--done" : "") : " step--on"}`);
-      row.append("div").attr("class", "step__dot");
-      row.append("div").text(label);
-      if (result) {
-        row.append("div").attr("class", "step__note")
-          .text(done ? "ok" : "not resolved");
-      }
-    });
-  }
-
-  async function submitReport() {
-    const text = document.getElementById("intakeText").value.trim();
-    const audio = document.getElementById("intakeAudio").files[0];
-    if (!text && !audio) return;
-
-    document.getElementById("intakeForm").hidden = true;
-    document.getElementById("intakeRun").hidden = false;
-    renderSteps(null);
-
-    let saved;
-    try {
-      let res;
-      if (audio) {
-        const fd = new FormData();
-        fd.append("file", audio);
-        res = await fetch(`${A.getApi()}/citizen-report`, { method: "POST", body: fd });
-      } else {
-        res = await fetch(`${A.getApi()}/citizen-report`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text }),
-        });
-      }
-      if (!res.ok) {
-        const detail = await res.json().catch(() => ({}));
-        throw new Error(detail.detail || `HTTP ${res.status}`);
-      }
-      saved = await res.json();
-    } catch (err) {
-      showResult(null, err.message);
-      return;
-    }
-
-    renderSteps(saved);
-    setTimeout(() => showResult(saved), 700);
-  }
-
-  function showResult(saved, error) {
-    document.getElementById("intakeRun").hidden = true;
-    const el = d3.select("#intakeDone");
-    el.node().hidden = false;
-    el.html("");
-
-    if (error) {
-      el.append("div").attr("class", "result__banner result__banner--warn")
-        .text(`Could not file the report: ${error}`);
-      el.append("div").attr("class", "intake__done-actions")
-        .append("button").attr("class", "btn").text("TRY AGAIN")
-        .on("click", openIntake);
-      return;
-    }
-
-    const resolved = !!saved.village;
-    el.append("div")
-      .attr("class", `result__banner${resolved ? "" : " result__banner--warn"}`)
-      .text(resolved
-        ? `Report #${saved.id} filed and understood.`
-        : `Report #${saved.id} filed, but the location could not be resolved to a ` +
-          `known village — so it cannot join a cluster yet.`);
-
-    const kv = el.append("div").attr("class", "kv");
-    [
-      ["Language", saved.language_detected || "—"],
-      ["Category", saved.issue_category || "not recognised"],
-      ["Severity", saved.severity || "—"],
-      ["Location said", saved.location_raw || "—"],
-      ["Resolved to", saved.village
-        ? `${saved.village}, ${saved.block || "?"}, ${saved.district || "?"}` : "unresolved"],
-      ["Confidence", saved.confidence != null ? saved.confidence.toFixed(2) : "—"],
-      ["Stored text", saved.raw_text || ""],
-    ].forEach(([k, v]) => {
-      kv.append("div").attr("class", "kv__k").text(k);
-      kv.append("div").attr("class", "kv__v").text(v);
-    });
-
-    const actions = el.append("div").attr("class", "intake__done-actions");
-    if (resolved) {
-      actions.append("button").attr("class", "btn btn--primary")
-        .text("RUN CLUSTERING → FIND MY CLUSTER")
-        .on("click", function () { clusterAndReveal(saved, d3.select(this)); });
-    }
-    actions.append("button").attr("class", "btn").text("FILE ANOTHER")
-      .on("click", () => {
-        document.getElementById("intakeText").value = "";
-        document.getElementById("intakeAudio").value = "";
-        document.getElementById("intakeAudioLabel").textContent = "🎙 or upload audio";
-        openIntake();
-      });
-    actions.append("button").attr("class", "btn").text("CLOSE").on("click", closeIntake);
-  }
+  /* ------------------------------------------------------- run clustering -- */
 
   /**
-   * Re-run clustering and scoring, then take the user to whichever cluster
-   * their report joined.
+   * The officials-only action: re-run the whole P3 pass.
    *
-   * A new report has cluster_id = NULL until the P3 pass runs, so this is not
-   * cosmetic -- it is the step that actually folds the report into a demand
-   * signal. It takes ~20s on 1,000 reports, which is why the button reports
-   * progress rather than just spinning.
+   * This lives on the dashboard and NOT on the citizen page on purpose. A
+   * recompute re-embeds every report, re-runs DBSCAN and re-scores all 113
+   * clusters, which reorders every district's worklist -- a decision an
+   * official takes, not a side effect of one villager pressing a button.
+   * It also takes ~30-60s, so the button reports what it is doing instead
+   * of appearing to hang.
    */
-  async function clusterAndReveal(saved, btn) {
-    btn.attr("disabled", true).text("CLUSTERING… (~20s)");
+  async function runClustering() {
+    const btn = d3.select("#btnRecompute");
+    const toast = d3.select("#toast");
+    const say = (msg, warn) => {
+      toast.node().hidden = false;
+      toast.classed("toast--warn", !!warn).text(msg);
+    };
+
+    btn.attr("disabled", true).text("CLUSTERING…");
+    say("Re-embedding every report and re-running DBSCAN — this takes a minute.");
+
     try {
-      await fetch(`${A.getApi()}/recompute-scores`, { method: "POST" });
-
-      // Re-read this specific report by id to learn which cluster took it.
-      // Matching on village + is_synthetic instead would pick whichever
-      // report happened to come first from that village, which is the wrong
-      // one as soon as a village has been reported about twice.
-      const all = await (await fetch(`${A.getApi()}/map-data?layer=reports`)).json();
-      const mine = (all.features || []).find(
-        (f) => f.properties && f.properties.id === saved.id);
-
-      const clusterId = mine ? mine.properties.cluster_id : null;
-      if (clusterId == null) {
-        btn.attr("disabled", null).text("RUN CLUSTERING → FIND MY CLUSTER");
-        d3.select("#intakeDone").insert("div", ".intake__done-actions")
-          .attr("class", "result__banner result__banner--warn")
-          .text("Clustering ran, but this report stayed unclustered — a lone report " +
-                "with nothing corroborating it is not yet a demand signal. That is " +
-                "correct behaviour, not a failure.");
-        return;
-      }
-
-      // Reload clusters so the new scores are what the dashboard shows.
-      location.href =
-        `${location.pathname}?api=${encodeURIComponent(A.getApi())}&at=cluster:${clusterId}&mine=${saved.id}`;
+      const res = await fetch(`${A.getApi()}/recompute-scores`, { method: "POST" });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const out = await res.json();
+      say(`${out.reports_clustered} of ${out.reports_total} reports clustered into ` +
+          `${out.clusters_created} clusters. Top score ${out.top_score}. Reloading…`);
+      // Reload rather than patching state in place: a recompute can create,
+      // merge or drop clusters, so every cluster id the page is holding may
+      // now point at something different.
+      setTimeout(() => location.reload(), 1600);
     } catch (err) {
-      btn.attr("disabled", null).text("RUN CLUSTERING → FIND MY CLUSTER");
-      d3.select("#intakeDone").insert("div", ".intake__done-actions")
-        .attr("class", "result__banner result__banner--warn")
-        .text(`Clustering failed: ${err.message}`);
+      btn.attr("disabled", null).text("RUN CLUSTERING");
+      say(`Clustering failed: ${err.message}`, true);
+      setTimeout(() => { toast.node().hidden = true; }, 6000);
     }
   }
 
   /* ----------------------------------------------------------------- boot -- */
+
+  // Wired outside onReady on purpose. onReady only fires once clusters have
+  // loaded, so when the backend is unreachable it never runs -- and the
+  // cross-role link would silently drop its ?api=, sending an official to a
+  // citizen page pointed at a different backend. Neither of these needs
+  // cluster data, so neither should wait for it.
+  document.getElementById("btnRecompute").addEventListener("click", runClustering);
+
+  const apiParam = new URLSearchParams(location.search).get("api");
+  if (apiParam) {
+    document.getElementById("citizenLink").href =
+      `report.html?api=${encodeURIComponent(apiParam)}`;
+  }
 
   A.onReady(() => {
     renderChips();
@@ -481,18 +342,6 @@
 
     document.getElementById("btnCompare").addEventListener("click", openCompare);
 
-    renderSamples();
-    document.getElementById("btnReport").addEventListener("click", openIntake);
-    document.getElementById("intakeClose").addEventListener("click", closeIntake);
-    document.getElementById("intakeSubmit").addEventListener("click", submitReport);
-    document.getElementById("intakeAudio").addEventListener("change", (e) => {
-      const f = e.target.files[0];
-      document.getElementById("intakeAudioLabel").textContent =
-        f ? `🎙 ${f.name}` : "🎙 or upload audio";
-    });
-    document.getElementById("intakeText").addEventListener("keydown", (e) => {
-      if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) submitReport();
-    });
 
     // Keep the worklist in step with the map, including navigations the map
     // starts itself (clicking a bubble, the breadcrumb, or Back).
@@ -501,7 +350,6 @@
     document.addEventListener("keydown", (e) => {
       if (e.key === "Escape") {
         closeCompare();
-        closeIntake();
         d3.select("#sheet").classed("sheet--open", false);
       }
     });
@@ -511,8 +359,6 @@
     //   ?compare=12,10        open the A-vs-B view for those two clusters
     //   ?whatif=Kolhapur:50   open the sheet and run ₹50 crore for a district
     const q = new URLSearchParams(location.search);
-
-    if (q.get("report") === "1") openIntake();
 
     const cmp = q.get("compare");
     if (cmp) {

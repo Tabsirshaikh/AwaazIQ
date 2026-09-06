@@ -1,0 +1,234 @@
+/* ===========================================================================
+   AwaazIQ — citizen complaint page
+
+   Loaded AFTER app.css, which supplies the design tokens and the shared
+   components (.btn, .steps, .kv, .result__banner, .eyebrow). Only what is
+   specific to the citizen role lives here.
+
+   The two roles are deliberately different shapes, not one page with a
+   toggle: the citizen page is a single scrolling column that works on a
+   phone, the officials' dashboard is a fixed three-pane desktop layout. A
+   citizen is doing one thing once; an official is comparing many things at
+   a glance.
+   =========================================================================== */
+
+/* app.css locks the viewport for the map. A complaint form has to scroll. */
+body.citizen { overflow: auto; height: auto; min-height: 100%; }
+
+/* ------------------------------------------------------------------ bar -- */
+
+.cbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 26px;
+  background: rgba(247, 244, 236, 0.94);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--border);
+}
+.cbar .brand { text-decoration: none; color: inherit; }
+.cbar__spacer { flex: 1; }
+/* --------------------------------------------------------------- layout -- */
+
+.wrap {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 40px 22px 70px;
+}
+
+.hero { margin-bottom: 26px; }
+.hero__title {
+  font-family: var(--serif);
+  font-size: 34px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  margin-bottom: 11px;
+}
+.hero__lead { font-size: 14.5px; line-height: 1.6; color: var(--body); }
+
+.card {
+  background: var(--paper);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 22px;
+  margin-bottom: 18px;
+  box-shadow: 0 1px 2px rgba(27, 42, 74, 0.04);
+}
+.card--quiet { background: transparent; box-shadow: none; border-style: dashed; }
+.card__head { margin-bottom: 13px; }
+.card__lead { font-size: 12.5px; color: var(--body); line-height: 1.55; margin-bottom: 13px; }
+
+.citizen textarea {
+  width: 100%;
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  background: var(--cream);
+  padding: 14px 15px;
+  font-family: var(--sans);
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--navy);
+  resize: vertical;
+}
+.citizen textarea:focus { outline: none; border-color: var(--amber); background: #fff; }
+
+.samples { display: flex; flex-wrap: wrap; gap: 7px; margin: 13px 0 18px; }
+
+.card__actions {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  flex-wrap: wrap;
+}
+.btn--lg { padding: 13px 26px; font-size: 12px; flex: 0 0 auto; }
+
+.filebtn {
+  flex: 1;
+  min-width: 200px;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--body);
+  padding: 12px 14px;
+  border: 1px dashed var(--border);
+  border-radius: 9px;
+  transition: 0.16s var(--ease);
+}
+.filebtn:hover { border-color: var(--amber); color: var(--navy); background: var(--cream); }
+
+.fineprint {
+  margin-top: 15px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+  font-size: 11.5px;
+  line-height: 1.55;
+  color: var(--muted);
+}
+
+/* -------------------------------------------------------------- receipt -- */
+
+.receipt {
+  display: flex;
+  align-items: baseline;
+  gap: 13px;
+  padding: 17px 19px;
+  background: var(--cream);
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  margin-bottom: 16px;
+}
+.receipt__num {
+  font-family: var(--serif);
+  font-size: 33px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--navy);
+}
+.receipt__label { font-size: 12px; color: var(--body); line-height: 1.5; }
+
+.next { margin-top: 18px; }
+.next__title {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--navy);
+  margin-bottom: 9px;
+}
+.next ol { margin: 0; padding-left: 19px; }
+.next li { font-size: 12.5px; line-height: 1.65; color: var(--body); margin-bottom: 6px; }
+.next li b { color: var(--navy); }
+
+.done-actions { display: flex; gap: 9px; margin-top: 19px; flex-wrap: wrap; }
+
+/* ---------------------------------------------------------------- track -- */
+
+.track { display: flex; gap: 9px; }
+.track input {
+  flex: 1;
+  border: 1.5px solid var(--border);
+  border-radius: 9px;
+  background: var(--paper);
+  padding: 11px 14px;
+  font-family: var(--sans);
+  font-size: 13px;
+  color: var(--navy);
+}
+.track input:focus { outline: none; border-color: var(--amber); }
+
+.mine { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 11px; }
+.mine__chip {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  padding: 5px 10px;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  background: var(--paper);
+  color: var(--body);
+  cursor: pointer;
+  transition: 0.16s var(--ease);
+}
+.mine__chip:hover { border-color: var(--amber); color: var(--navy); }
+
+.tstat {
+  margin-top: 16px;
+  padding: 17px 19px;
+  border-radius: 11px;
+  border: 1px solid var(--border);
+  background: var(--paper);
+}
+.tstat__head {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 9px;
+}
+.tstat__pill {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  padding: 4px 9px;
+  border-radius: 5px;
+}
+.tstat__pill--ok   { background: var(--green-bg); color: var(--green); }
+.tstat__pill--wait { background: var(--amber-soft); color: #7a5a22; }
+.tstat__pill--bad  { background: var(--red-bg); color: var(--red); }
+.tstat__text { font-size: 12.5px; line-height: 1.6; color: var(--body); }
+.tstat__text b { color: var(--navy); }
+
+.rankbar {
+  display: flex;
+  align-items: baseline;
+  gap: 11px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+.rankbar__num {
+  font-family: var(--serif);
+  font-size: 27px;
+  font-weight: 700;
+  color: var(--amber);
+}
+.rankbar__of { font-size: 12px; color: var(--body); }
+
+.cfoot {
+  margin-top: 34px;
+  text-align: center;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+/* ----------------------------------------------------------------- 600px -- */
+
+@media (max-width: 600px) {
+  .wrap { padding: 26px 15px 50px; }
+  .hero__title { font-size: 26px; }
+  .cbar { padding: 12px 15px; gap: 9px; }
+  .brand__tag { display: none; }
+  .card__actions { flex-direction: column; align-items: stretch; }
+  .btn--lg { width: 100%; }
+}

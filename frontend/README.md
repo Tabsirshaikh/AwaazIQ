@@ -1,6 +1,29 @@
-# Frontend — AwaazIQ dashboard
+# Frontend — AwaazIQ
 
-Policymaker-facing dashboard. Step 1 of P4: the zoomable demand map.
+Two pages, one for each side of the system.
+
+| Page | Role | Does |
+|---|---|---|
+| `report.html` | **Citizen** | File a complaint in any language; look up what happened to it |
+| `index.html` | **Officials** | The demand map, the ranked worklist, the nine-term score, what-if, and RUN CLUSTERING |
+
+They are separate pages rather than one page with a toggle, because the two
+roles want opposite things. A citizen does one thing once, on a phone, and
+needs plain language and no jargon. An official compares many things at a
+glance on a desktop, and needs density. A single layout serving both would
+serve neither.
+
+**The split also decides who may do what.** Only the officials' page can run
+clustering: a recompute re-embeds every report, re-runs DBSCAN and re-scores
+all 113 clusters, reordering every district's worklist. That is an
+administrative decision, not a side effect of one villager pressing a button.
+The citizen instead gets a tracking view that reports the truth whenever they
+ask — including "not grouped yet", which is the normal state for a fresh
+complaint.
+
+Each page links to the other in its top bar, and carries `?api=` across, so a
+dashboard pointed at a non-default backend never sends citizens to a
+different one.
 
 ## Run it
 
@@ -20,7 +43,12 @@ cd frontend
 python -m http.server 5500
 ```
 
-Open <http://127.0.0.1:5500>.
+Then open whichever role you want:
+
+| | |
+|---|---|
+| Citizen | <http://127.0.0.1:5500/report.html> |
+| Officials | <http://127.0.0.1:5500/index.html> |
 
 If the API is on a different port, pass it: `?api=http://127.0.0.1:8010`.
 
@@ -33,30 +61,35 @@ If the API is on a different port, pass it: `?api=http://127.0.0.1:8010`.
 | **Detail panel** (right) | Opens on a cluster: the nine terms with their sources, a sum line proving they add to the score, and "why not the runner-up" |
 | **What-if sheet** (bottom) | Adds budget to a district and re-scores; the rail shows deltas and reorders |
 | **Compare** (overlay) | Two clusters side by side, term by term, with a verdict generated from their actual numbers |
-| **Intake** (overlay) | A citizen files a complaint in any language, watches the six pipeline stages resolve it, then runs clustering and is taken to the cluster their report joined |
+| **Run clustering** (top bar) | Officials-only. Re-runs the whole P3 pass, then reloads — every cluster id may have changed |
 
 ## The citizen loop
 
-`+ REPORT AN ISSUE` closes the circle the rest of the dashboard only reads
-from. A complaint is typed (or spoken, as an audio upload), `POST
-/citizen-report` runs the real pipeline on it, and the result screen shows
-each stage's actual output — language, category, severity, the location
-phrase, the village it geocoded to, and the text as stored after redaction.
+`report.html` closes the circle the dashboard only reads from.
 
-"Run clustering" then calls `POST /recompute-scores` and redirects to
-`?at=cluster:N&mine=<id>`, so the citizen lands on the cluster their report
-was folded into, with their own row badged **yours**.
+1. A complaint is typed (or spoken, as an audio upload) in Hindi, Marathi,
+   English or a mix.
+2. `POST /citizen-report` runs the real pipeline. The result screen shows each
+   stage's actual output — language, problem, urgency, the place phrase, the
+   village it geocoded to, and the text as stored *after* redaction — and
+   marks any stage that could not resolve rather than showing a tick.
+3. The citizen gets a report number. It is also kept in `localStorage` so the
+   page can offer it back later; that list never leaves the device, and the
+   server could not store it anyway.
+4. `GET /citizen-report/{id}` answers the tracking view with one of three
+   honest states:
 
-A lone report often stays unclustered, and the screen says so rather than
-inventing a cluster: DBSCAN needs corroboration before one voice becomes a
-demand signal. File a second complaint about the same problem nearby and it
-clusters.
+| State | Means |
+|---|---|
+| Needs a place | The location could not be matched to a known village, so it can never join a cluster as written |
+| Waiting for others | Resolved, but no corroborating reports yet. One report is not a demand signal — this is normal, not an error |
+| Grouped and ranked | Folded into a cluster, shown with its report count, distinct reporters, people affected, score and rank |
 
-**What the cluster panel deliberately cannot show is who reported.** There is
-no citizen identity column in the schema; phone numbers and self-stated names
-are redacted before the text is stored (`redact_pii`), while the untouched
-original is kept in `citizen_request_raw`. The panel states this outright, so
-a viewer reads it as a design property rather than as missing data.
+**What the dashboard deliberately cannot show is who reported.** There is no
+citizen identity column in the schema; phone numbers and self-stated names are
+redacted before the text is stored (`redact_pii`), while the untouched
+original is kept in `citizen_request_raw`. The cluster panel states this
+outright, so a viewer reads it as a design property rather than missing data.
 
 ## Deep links
 
@@ -70,8 +103,14 @@ rather than described to them:
 | `?at=cluster:12` | Cluster 12, zoomed in, panel open |
 | `?compare=18,1` | Ajra vs Shirol, side by side |
 | `?whatif=Kolhapur:120` | ₹120 crore to Kolhapur, simulated |
-| `?report=1` | Citizen intake, ready for a complaint |
 | `?at=cluster:92&mine=2014` | A cluster with one report flagged "yours" |
+
+On the citizen page:
+
+| URL | Opens |
+|---|---|
+| `report.html` | A blank complaint form |
+| `report.html?track=2014` | That report's status, looked up on load |
 
 `?compare=18,1` is the one worth bookmarking for a demo: Ajra wins on 7
 reports against Shirol's 18, and the verdict line explaining why is generated
@@ -125,8 +164,13 @@ data are rendered inactive and are not clickable.
 
 | File | Owns |
 |---|---|
+| `index.html` | Officials' dashboard |
 | `js/app.js` | Map, projection, navigation, the cluster detail panel |
-| `js/panels.js` | Rail, comparison, what-if — talks to the map only through `window.AwaazIQ` |
+| `js/panels.js` | Rail, comparison, what-if, run-clustering — talks to the map only through `window.AwaazIQ` |
+| `report.html` | Citizen complaint page |
+| `js/report.js` | Filing and tracking. Shares no code with the dashboard; it needs neither the map nor D3's heavier machinery |
+| `css/app.css` | Design tokens plus everything the dashboard renders, and the few components both roles share (`.btn`, `.steps`, `.kv`, `.sample`, `.role`) |
+| `css/report.css` | Only what is specific to the citizen page. Loaded after `app.css` |
 
 `app.js` exposes a deliberately small surface (`navigate`, `onNavigate`,
 `getClusters`, `TERMS`, `rankOf`, …). `panels.js` never reaches into the

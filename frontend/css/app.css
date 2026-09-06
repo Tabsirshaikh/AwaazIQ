@@ -36,6 +36,12 @@
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
+/* Any `display` declaration outranks the hidden attribute's default
+   `display: none`, so an element styled `display: flex` stays on screen with
+   hidden set -- which is how an empty toast pill ended up floating over the
+   map. Stated once, globally, rather than remembered per component. */
+[hidden] { display: none !important; }
+
 html, body {
   height: 100%;
   background: var(--cream);
@@ -252,6 +258,37 @@ html, body {
 
 .topbar__spacer { flex: 1; }
 
+/* Role chrome, shared by both pages. The dashboard and the complaint page are
+   two roles of one product, so the badge that says which one you are looking
+   at and the link that crosses between them must look identical on both. */
+.rolelink {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--body);
+  text-decoration: none;
+  padding: 7px 12px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  white-space: nowrap;
+  transition: 0.16s var(--ease);
+}
+.rolelink:hover { border-color: var(--amber); color: var(--navy); background: #fff; }
+
+.role {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  padding: 5px 10px;
+  border-radius: 20px;
+}
+.role--citizen { background: var(--amber-soft); color: #7a5a22; }
+.role--admin   { background: var(--navy); color: #fff; }
+
 .eyebrow {
   font-family: var(--mono);
   font-size: 10px;
@@ -393,6 +430,31 @@ html, body {
   border-top: 1px solid var(--border);
   font-size: 10.5px; color: var(--body); line-height: 1.4;
 }
+
+/* ---------------------------------------------------------------- toast -- */
+
+/* Progress for the officials' RUN CLUSTERING action. It gets its own element
+   rather than borrowing #status, which app.js owns and rebuilds as the live
+   stat cards -- writing into that would wipe the counts off the screen. */
+.toast {
+  position: absolute;
+  left: 50%;
+  bottom: 26px;
+  transform: translateX(-50%);
+  z-index: 60;
+  max-width: 560px;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 13px 19px;
+  background: var(--navy);
+  color: #fff;
+  border-radius: 11px;
+  font-size: 12.5px;
+  line-height: 1.45;
+  box-shadow: 0 12px 34px rgba(27, 42, 74, 0.26);
+}
+.toast--warn { background: var(--red); }
 
 /* ----------------------------------------------------------- status pill -- */
 
@@ -539,41 +601,11 @@ html, body {
 }
 .runnerup__btn:hover { background: var(--cream-deep); }
 
-/* --------------------------------------------------------------- intake -- */
+/* -------------------------------------------- shared citizen components -- */
 
-.intake {
-  position: absolute; inset: 0;
-  background: rgba(27, 42, 74, 0.28);
-  backdrop-filter: blur(3px);
-  z-index: 48; display: grid; place-items: center; padding: 30px;
-  opacity: 0; pointer-events: none;
-  transition: opacity 280ms var(--ease);
-}
-.intake--open { opacity: 1; pointer-events: auto; }
+/* Used by report.html (the citizen page), not by this dashboard. They live
+   here because both roles must render an identical pipeline read-out. */
 
-.intake__box {
-  width: min(660px, 100%);
-  max-height: 100%;
-  overflow-y: auto;
-  background: var(--paper);
-  border-radius: 16px;
-  padding: 24px 28px 26px;
-  box-shadow: 0 26px 70px rgba(27, 42, 74, 0.26);
-}
-.intake__head { display: flex; align-items: flex-start; gap: 14px; margin-bottom: 16px; }
-.intake__head .sheet__close { margin-left: auto; position: static; }
-.intake__title { font-family: var(--serif); font-size: 23px; font-weight: 700; margin-top: 3px; }
-.intake__lead { font-size: 12.5px; color: var(--body); line-height: 1.5; margin-bottom: 13px; }
-
-.intake textarea {
-  width: 100%; resize: vertical;
-  font-family: var(--sans); font-size: 14px; color: var(--navy);
-  border: 1px solid var(--border); border-radius: 10px;
-  padding: 12px 14px; background: var(--cream); line-height: 1.5;
-}
-.intake textarea:focus { outline: none; border-color: var(--amber); background: #fff; }
-
-.intake__samples { display: flex; flex-wrap: wrap; gap: 6px; margin: 11px 0 16px; }
 .sample {
   font-size: 11px; cursor: pointer;
   border: 1px solid var(--border); background: var(--cream);
@@ -581,14 +613,6 @@ html, body {
   transition: all 150ms var(--ease);
 }
 .sample:hover { border-color: var(--amber); color: var(--navy); background: #fff; }
-
-.intake__actions { display: flex; align-items: center; gap: 12px; }
-.intake__file {
-  font-size: 12px; color: var(--body); cursor: pointer;
-  border: 1px dashed var(--border); border-radius: 8px; padding: 9px 13px;
-  transition: all 150ms var(--ease);
-}
-.intake__file:hover { border-color: var(--amber); color: var(--navy); }
 
 /* Pipeline progress — each stage lights as the backend gets to it. */
 .steps { display: flex; flex-direction: column; gap: 3px; }
@@ -622,7 +646,6 @@ html, body {
 .kv__k { color: var(--muted); font-family: var(--mono); font-size: 10px; letter-spacing: 0.05em;
          text-transform: uppercase; display: flex; align-items: center; }
 .kv__v { color: var(--navy); font-weight: 600; }
-.intake__done-actions { display: flex; gap: 9px; }
 
 /* ------------------------------------------------- reports in the panel -- */
 

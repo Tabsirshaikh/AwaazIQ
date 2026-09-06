@@ -161,6 +161,64 @@ def cluster_reports(
     }
 
 
+@router.get("/citizen-report/{report_id}")
+def citizen_report_status(report_id: int, db: Session = Depends(get_db)):
+    """
+    What happened to one citizen's report -- the citizen-side view.
+
+    A report has three honest states, and the tracking page shows whichever
+    one is true rather than implying progress that has not happened:
+
+      unresolved   the location could not be matched to a known village, so
+                   it can never join a cluster as it stands
+      awaiting     resolved, but clustering has not yet found corroboration.
+                   One report is not yet a demand signal, so this is the
+                   normal state for a fresh complaint, not an error
+      clustered    folded into a demand cluster, which carries a rank the
+                   citizen can see
+
+    Lives here rather than in routes_citizen_report because ranking needs
+    _latest_score_by_cluster; importing it the other way round would be a
+    circular import.
+    """
+    report = db.query(CitizenRequest).filter(CitizenRequest.id == report_id).first()
+    if report is None:
+        raise HTTPException(status_code=404, detail=f"Report {report_id} not found")
+
+    payload = {"report": serialize_citizen_request(report), "cluster": None}
+
+    if report.village is None:
+        payload["status"] = "unresolved"
+        return payload
+
+    if report.cluster_id is None:
+        payload["status"] = "awaiting_corroboration"
+        return payload
+
+    cluster = (
+        db.query(DemandCluster).filter(DemandCluster.id == report.cluster_id).first()
+    )
+    if cluster is None:
+        # The cluster id points at nothing -- possible between a recompute
+        # that dropped clusters and one that reassigned reports.
+        payload["status"] = "awaiting_corroboration"
+        return payload
+
+    scores = _latest_score_by_cluster(db)
+    ranked = sorted(
+        scores.values(), key=lambda s: s.priority_score, reverse=True
+    )
+    rank = next(
+        (i + 1 for i, s in enumerate(ranked) if s.cluster_id == cluster.id), None
+    )
+
+    payload["status"] = "clustered"
+    payload["cluster"] = _serialize_cluster(cluster, scores.get(cluster.id))
+    payload["cluster"]["rank"] = rank
+    payload["cluster"]["ranked_out_of"] = len(ranked)
+    return payload
+
+
 @router.get("/map-data")
 def get_map_data(
     layer: str = Query("clusters", pattern="^(clusters|reports)$"),

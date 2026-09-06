@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>AwaazIQ — Report a problem</title>
+<link rel="stylesheet" href="css/app.css" />
+<link rel="stylesheet" href="css/report.css" />
+</head>
+<body class="citizen">
+
+<header class="cbar">
+  <a class="brand" href="report.html">
+    <span class="brand__name">AwaazIQ</span>
+    <span class="brand__tag">From Citizen Voice to Intelligent Action</span>
+  </a>
+  <span class="role role--citizen">Citizen</span>
+  <div class="cbar__spacer"></div>
+  <a class="rolelink" href="index.html" id="adminLink">Officials&nbsp;&rsaquo;</a>
+</header>
+
+<main class="wrap">
+
+  <section class="hero">
+    <h1 class="hero__title">Report a problem in your area</h1>
+    <p class="hero__lead">
+      Write in Hindi, Marathi, English or a mix of them — however you speak.
+      You do not need an account, and you are never asked for your name.
+    </p>
+  </section>
+
+  <!-- ------------------------------------------------------------- form -- -->
+  <section class="card" id="formCard">
+    <div class="card__head">
+      <span class="eyebrow">Your complaint</span>
+    </div>
+
+    <textarea id="text" rows="4"
+      placeholder="e.g. hamare gaon mein sadak bahut kharab hai near Ajra"></textarea>
+
+    <div class="samples" id="samples"></div>
+
+    <div class="card__actions">
+      <label class="filebtn">
+        <input type="file" id="audio" accept="audio/*" hidden />
+        <span id="audioLabel">🎙 Record or upload audio instead</span>
+      </label>
+      <button class="btn btn--primary btn--lg" id="submit">SEND REPORT</button>
+    </div>
+
+    <p class="fineprint">
+      Phone numbers and names you write about yourself are removed before your
+      report is stored. Your report is never linked to your identity.
+    </p>
+  </section>
+
+  <!-- --------------------------------------------------------- pipeline -- -->
+  <section class="card" id="runCard" hidden>
+    <div class="card__head"><span class="eyebrow">Reading your report</span></div>
+    <div class="steps" id="steps"></div>
+  </section>
+
+  <!-- ---------------------------------------------------------- receipt -- -->
+  <section class="card" id="doneCard" hidden></section>
+
+  <!-- ------------------------------------------------------------ track -- -->
+  <section class="card card--quiet" id="trackCard">
+    <div class="card__head">
+      <span class="eyebrow">Track a report</span>
+    </div>
+    <p class="card__lead">
+      Already sent one? Enter its number to see what happened to it.
+    </p>
+    <div class="track">
+      <input type="text" id="trackId" inputmode="numeric" placeholder="Report number, e.g. 2014" />
+      <button class="btn" id="trackGo" style="flex:0 0 130px">CHECK</button>
+    </div>
+    <div class="mine" id="mine"></div>
+    <div id="trackResult"></div>
+  </section>
+
+  <footer class="cfoot">
+    <span>AwaazIQ · pilot in Kolhapur &amp; Nashik districts, Maharashtra</span>
+  </footer>
+
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+<script src="js/report.js"></script>
+</body>
+</html>
