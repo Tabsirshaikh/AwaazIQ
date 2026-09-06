@@ -433,7 +433,6 @@
     const b = c.breakdown || {};
     const maxAbs = d3.max(TERMS, ([k]) => Math.abs(b[k] || 0)) || 1;
     const sum = TERMS.reduce((acc, [k]) => acc + (b[k] || 0), 0);
-    const runner = clusters.find((x) => x.id === c.runner_up_cluster_id);
 
     dock.html("");
 
@@ -551,52 +550,6 @@
     loadClusterDetail(c.id, evTargets, wgBody);
 
     /* -- counterfactual -- */
-    if (runner) {
-      const rs = right.append("div").style("margin-top", "18px");
-      rs.append("div").attr("class", "eyebrow").text("Why not the runner-up");
-      rs.append("div").attr("class", "dock__hint")
-        .text("The next cluster down, and exactly which terms separate them.");
-
-      const card = rs.append("div").attr("class", "runnerup");
-      card.append("div").attr("class", "runnerup__name")
-        .text(`${runner.block || runner.district} · ${runner.issue_category}`);
-      card.append("div").attr("class", "runnerup__score")
-        .text(`${(runner.priority_score ?? 0).toFixed(2)} / 100 · ` +
-              `${runner.report_count} reports · ${fmt(runner.population_affected || 0)} people`);
-
-      const rb = runner.breakdown || {};
-      const diffs = TERMS
-        .map(([k, label]) => ({ label, d: (b[k] || 0) - (rb[k] || 0) }))
-        .filter((x) => Math.abs(x.d) >= 0.5)
-        .sort((a, b2) => Math.abs(b2.d) - Math.abs(a.d))
-        .slice(0, 4);
-
-      const list = card.append("div").attr("class", "runnerup__diffs");
-      if (diffs.length) {
-        diffs.forEach((x) => {
-          const d = list.append("div").attr("class", "diff");
-          d.append("span").attr("class", "diff__n").text(x.label);
-          d.append("span")
-            .attr("class", `diff__v diff__v--${x.d > 0 ? "up" : "down"}`)
-            .text(`${x.d > 0 ? "+" : ""}${x.d.toFixed(2)}`);
-        });
-      } else {
-        list.append("div").attr("class", "diff")
-          .append("span").attr("class", "diff__n")
-          .text("The two are separated by less than half a point on every term.");
-      }
-
-      card.append("button").attr("class", "runnerup__btn")
-        .text("VIEW THIS CLUSTER →")
-        .on("click", () => {
-          if (runner.district !== nav.district) {
-            navigate("district", { state: PILOT_STATE, district: runner.district })
-              .then(() => navigate("cluster", { cluster: runner }));
-          } else {
-            navigate("cluster", { cluster: runner });
-          }
-        });
-    }
   }
 
   /**

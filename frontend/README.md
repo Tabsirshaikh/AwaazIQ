@@ -58,7 +58,7 @@ If the API is on a different port, pass it: `?api=http://127.0.0.1:8010`.
 |---|---|
 | **Rail** (left) | Ranked worklist, filtered by category, following whatever the map is showing. Tick two rows to compare them. |
 | **Map** (centre) | The zoom ladder — India → Maharashtra → district → cluster |
-| **Detail dock** (below the map) | Opens on a cluster, full width, in three columns: the nine terms — each expanding onto the record it was computed from — then the work groups, then the reports and the runner-up |
+| **Detail dock** (below the map) | Opens on a cluster, full width, in three columns: the nine terms — each expanding onto the record it was computed from — then the work groups, then the reports |
 | **What-if sheet** (bottom) | Adds budget to a district and re-scores; the rail shows deltas and reorders |
 | **Compare** (overlay) | Two clusters side by side, term by term, with a verdict generated from their actual numbers |
 | **Run clustering** (top bar) | Officials-only. Re-runs the whole P3 pass, then reloads — every cluster id may have changed |

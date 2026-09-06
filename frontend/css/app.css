@@ -579,27 +579,6 @@ html, body {
 .sumline__l { font-size: 12px; font-weight: 700; color: var(--navy); }
 .sumline__v { font-family: var(--serif); font-size: 20px; font-weight: 700; color: var(--navy); }
 
-.runnerup {
-  background: var(--cream); border: 1px solid var(--border);
-  border-radius: 10px; padding: 14px 15px;
-}
-.runnerup__name { font-size: 13px; font-weight: 700; color: var(--navy); margin-bottom: 3px; }
-.runnerup__score { font-family: var(--mono); font-size: 11px; color: var(--body); margin-bottom: 9px; }
-.runnerup__diffs { display: flex; flex-direction: column; gap: 5px; }
-.diff { display: flex; justify-content: space-between; font-size: 11px; }
-.diff__n { color: var(--body); }
-.diff__v { font-family: var(--mono); font-weight: 700; }
-.diff__v--up { color: var(--green); }
-.diff__v--down { color: var(--red); }
-.runnerup__btn {
-  margin-top: 11px; width: 100%;
-  border: 1px solid var(--border); background: var(--paper);
-  color: var(--navy); cursor: pointer;
-  font-family: var(--mono); font-size: 9.5px; font-weight: 700; letter-spacing: 0.08em;
-  padding: 8px; border-radius: 7px;
-  transition: background 160ms var(--ease);
-}
-.runnerup__btn:hover { background: var(--cream-deep); }
 
 /* -------------------------------------------- shared citizen components -- */
 
