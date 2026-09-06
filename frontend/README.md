@@ -24,15 +24,32 @@ Open <http://127.0.0.1:5500>.
 
 If the API is on a different port, pass it: `?api=http://127.0.0.1:8010`.
 
+## What's on screen
+
+| Region | Does |
+|---|---|
+| **Rail** (left) | Ranked worklist, filtered by category, following whatever the map is showing. Tick two rows to compare them. |
+| **Map** (centre) | The zoom ladder — India → Maharashtra → district → cluster |
+| **Detail panel** (right) | Opens on a cluster: the nine terms with their sources, a sum line proving they add to the score, and "why not the runner-up" |
+| **What-if sheet** (bottom) | Adds budget to a district and re-scores; the rail shows deltas and reorders |
+| **Compare** (overlay) | Two clusters side by side, term by term, with a verdict generated from their actual numbers |
+
 ## Deep links
 
-The current view is addressable, so a specific place can be shared:
+Every view is addressable, so a specific finding can be sent to someone
+rather than described to them:
 
-| URL | Opens at |
+| URL | Opens |
 |---|---|
 | `?at=state` | Maharashtra |
 | `?at=district:Kolhapur` | Kolhapur district |
-| `?at=cluster:12` | Cluster 12, zoomed in |
+| `?at=cluster:12` | Cluster 12, zoomed in, panel open |
+| `?compare=18,1` | Ajra vs Shirol, side by side |
+| `?whatif=Kolhapur:120` | ₹120 crore to Kolhapur, simulated |
+
+`?compare=18,1` is the one worth bookmarking for a demo: Ajra wins on 7
+reports against Shirol's 18, and the verdict line explaining why is generated
+from the live scores, not written into the page.
 
 ## The zoom ladder
 
@@ -71,8 +88,32 @@ Only Kolhapur and Nashik carry citizen data — 2 of 726 districts. The India
 view says so rather than implying national coverage, and districts without
 data are rendered inactive and are not clickable.
 
+## File layout
+
+| File | Owns |
+|---|---|
+| `js/app.js` | Map, projection, navigation, the cluster detail panel |
+| `js/panels.js` | Rail, comparison, what-if — talks to the map only through `window.AwaazIQ` |
+
+`app.js` exposes a deliberately small surface (`navigate`, `onNavigate`,
+`getClusters`, `TERMS`, `rankOf`, …). `panels.js` never reaches into the
+map's internals. Subscribe with `onNavigate` rather than wrapping
+`navigate` — the map triggers navigations itself (clicking a bubble, the
+breadcrumb, Back), and a wrapper only sees the ones you call.
+
+## What-if, and why the numbers cap
+
+The slider speaks crore because that is the unit a budget officer uses; the
+API takes rupees, so the value is multiplied by 1e7 on the way out.
+
+Deltas cap at **+12.00** by design. Extra budget adds 0.4 points per crore up
+to a ceiling of 12, so ₹120 crore and ₹500 crore both land on +12. Without
+that cap a large enough number would swamp every other term and the ranking
+would become "whoever got the most money" — the opposite of the point.
+Clusters are re-scored but never re-clustered: what is broken does not change
+because money moved, only what is fundable does.
+
 ## Not built yet
 
-The ranked cluster list, the nine-term score breakdown panel, the
-cluster A-vs-B comparison, and the what-if budget slider. Every API they
-need is already live.
+Nothing on the P4 list. Remaining work is elsewhere: real voice testing,
+deployment, the LGD loader, and finishing the JJM crawl.

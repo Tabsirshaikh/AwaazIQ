@@ -551,6 +551,7 @@
 
     renderBreadcrumb();
     renderStatus();
+    (window.AwaazIQ._navFns || []).forEach((fn) => fn(nav));
   }
 
   async function ensureReports() {
@@ -641,6 +642,8 @@
     const loader = document.getElementById("loader");
     loader.classList.add("loader--out");
     setTimeout(() => (loader.hidden = true), 450);
+
+    window.AwaazIQ._fireReady();
   }
 
   function fail(msg) {
@@ -672,6 +675,33 @@
       navigate(nav.level, { state: nav.state, district: nav.district, cluster: nav.cluster });
     }, 180);
   });
+
+  /* --------------------------------------------------------------- api ---- */
+
+  // Surface the minimum the UI layer needs. Keeping this deliberately small
+  // means the map owns navigation and scales, and panels.js only ever asks --
+  // it never reaches into the map's internals.
+  window.AwaazIQ = {
+    navigate,
+    nav,
+    TERMS,
+    fmt,
+    scoreColour,
+    getClusters: () => clusters,
+    getApi: () => API,
+    rankOf,
+    onNavigate(fn) {
+      this._navFns = (this._navFns || []).concat(fn);
+    },
+    onReady(fn) {
+      if (this._ready) fn();
+      else this._readyFns = (this._readyFns || []).concat(fn);
+    },
+    _fireReady() {
+      this._ready = true;
+      (this._readyFns || []).forEach((f) => f());
+    },
+  };
 
   boot();
 })();
