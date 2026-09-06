@@ -288,6 +288,10 @@
     const head = s.append("div").attr("class", "tstat__head");
     head.append("span").attr("class", `tstat__pill tstat__pill--${kind}`).text(label);
     s.append("div").attr("class", "tstat__text").html(html);
+    // The track box sits at the bottom of the page, so the answer usually
+    // lands below the fold. Bring it to the reader rather than expecting
+    // them to notice something appeared off-screen.
+    s.node().scrollIntoView({ behavior: "smooth", block: "center" });
   }
 
   /* --------------------------------------------------------------- boot -- */

@@ -12,7 +12,13 @@
    a glance.
    =========================================================================== */
 
-/* app.css locks the viewport for the map. A complaint form has to scroll. */
+/* app.css locks the viewport for the map with `html, body { height: 100%;
+   overflow: hidden }`. A complaint form has to scroll, and BOTH elements have
+   to be released: `overflow: hidden` on <html> alone clips the whole document
+   no matter what <body> says. Releasing only body left the page frozen at
+   scrollY 0, which also made the tracking result -- rendered near the bottom
+   -- permanently unreachable. Hence the class on <html> in report.html. */
+html.citizen,
 body.citizen { overflow: auto; height: auto; min-height: 100%; }
 
 /* ------------------------------------------------------------------ bar -- */
