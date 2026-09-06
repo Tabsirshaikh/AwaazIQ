@@ -33,6 +33,30 @@ If the API is on a different port, pass it: `?api=http://127.0.0.1:8010`.
 | **Detail panel** (right) | Opens on a cluster: the nine terms with their sources, a sum line proving they add to the score, and "why not the runner-up" |
 | **What-if sheet** (bottom) | Adds budget to a district and re-scores; the rail shows deltas and reorders |
 | **Compare** (overlay) | Two clusters side by side, term by term, with a verdict generated from their actual numbers |
+| **Intake** (overlay) | A citizen files a complaint in any language, watches the six pipeline stages resolve it, then runs clustering and is taken to the cluster their report joined |
+
+## The citizen loop
+
+`+ REPORT AN ISSUE` closes the circle the rest of the dashboard only reads
+from. A complaint is typed (or spoken, as an audio upload), `POST
+/citizen-report` runs the real pipeline on it, and the result screen shows
+each stage's actual output — language, category, severity, the location
+phrase, the village it geocoded to, and the text as stored after redaction.
+
+"Run clustering" then calls `POST /recompute-scores` and redirects to
+`?at=cluster:N&mine=<id>`, so the citizen lands on the cluster their report
+was folded into, with their own row badged **yours**.
+
+A lone report often stays unclustered, and the screen says so rather than
+inventing a cluster: DBSCAN needs corroboration before one voice becomes a
+demand signal. File a second complaint about the same problem nearby and it
+clusters.
+
+**What the cluster panel deliberately cannot show is who reported.** There is
+no citizen identity column in the schema; phone numbers and self-stated names
+are redacted before the text is stored (`redact_pii`), while the untouched
+original is kept in `citizen_request_raw`. The panel states this outright, so
+a viewer reads it as a design property rather than as missing data.
 
 ## Deep links
 
@@ -46,6 +70,8 @@ rather than described to them:
 | `?at=cluster:12` | Cluster 12, zoomed in, panel open |
 | `?compare=18,1` | Ajra vs Shirol, side by side |
 | `?whatif=Kolhapur:120` | ₹120 crore to Kolhapur, simulated |
+| `?report=1` | Citizen intake, ready for a complaint |
+| `?at=cluster:92&mine=2014` | A cluster with one report flagged "yours" |
 
 `?compare=18,1` is the one worth bookmarking for a demo: Ajra wins on 7
 reports against Shirol's 18, and the verdict line explaining why is generated
@@ -69,7 +95,7 @@ Its `dt_code` values are the same district codes our Census loaders already
 use (Kolhapur `530`, Nashik `516`), so map and database join without a
 translation table.
 
-## Two things worth knowing before changing this
+## Three things worth knowing before changing this
 
 **1. Do not set `stroke-width` or `font-size` in CSS for map elements.**
 The whole map lives in one scaled `<g>`, so those values are divided by the
@@ -81,6 +107,13 @@ disappear when zoomed out, labels become enormous when zoomed in.
 Bubble radii and stroke widths are computed from `view.k`. Drawing first and
 animating after sizes everything against the zoom level you are *leaving*,
 which renders district view as a field of giant overlapping blobs.
+
+**3. Match the CSS selector to the class the JS actually emits.**
+`loadClusterReports` writes `class="rep rep--new"`; the stylesheet had
+`.rep__new`, an element where a modifier was meant. It matched nothing, and
+the failure was invisible — the citizen's own report simply came back looking
+like every other row. Same failure mode as (1): a selector that silently
+matches nothing looks identical to a feature that was never wired up.
 
 ## Honest scope
 

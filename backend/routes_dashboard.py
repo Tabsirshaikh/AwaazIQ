@@ -105,6 +105,62 @@ def get_cluster(cluster_id: int, db: Session = Depends(get_db)):
     return detail
 
 
+@router.get("/clusters/{cluster_id}/reports")
+def cluster_reports(
+    cluster_id: int,
+    limit: int = Query(200, ge=1, le=1000),
+    db: Session = Depends(get_db),
+):
+    """
+    The individual citizen reports folded into one cluster.
+
+    This is what lets the dashboard answer "who reported this?" -- and the
+    honest answer is that it can show WHAT was reported, from WHERE, in WHICH
+    language and WHEN, but never WHO. There is no citizen identity column, and
+    phone numbers and name-prefixes are redacted from the text at ingestion
+    before it is ever stored (routes_citizen_report.redact_pii). That is a
+    deliberate privacy property carried from the DPDP Act design, not a gap to
+    be filled in later.
+    """
+    cluster = db.query(DemandCluster).filter(DemandCluster.id == cluster_id).first()
+    if cluster is None:
+        raise HTTPException(status_code=404, detail=f"Cluster {cluster_id} not found")
+
+    in_cluster = db.query(CitizenRequest).filter(
+        CitizenRequest.cluster_id == cluster_id
+    )
+
+    # Counted over the whole cluster, not over the page. Deriving these from
+    # the returned rows instead would make both numbers silently collapse to
+    # `limit` on any cluster larger than one page.
+    #
+    # "Distinct reporters" is approximated by distinct report text, exactly as
+    # the scoring engine does it, so the two numbers can never disagree.
+    total = in_cluster.count()
+    distinct = len(
+        {(text or "").strip().lower() for (text,) in in_cluster.with_entities(
+            CitizenRequest.raw_text
+        )}
+    )
+
+    rows = (
+        in_cluster.order_by(
+            CitizenRequest.created_at.desc(), CitizenRequest.id.desc()
+        )
+        .limit(limit)
+        .all()
+    )
+
+    return {
+        "cluster_id": cluster_id,
+        "report_count": total,
+        "distinct_texts": distinct,
+        "returned": len(rows),
+        "identity_available": False,
+        "reports": [serialize_citizen_request(r) for r in rows],
+    }
+
+
 @router.get("/map-data")
 def get_map_data(
     layer: str = Query("clusters", pattern="^(clusters|reports)$"),
@@ -160,6 +216,11 @@ def get_map_data(
                 "coordinates": [row.longitude, row.latitude],
             },
             "properties": {
+                # The report's own id: without it a caller can only match a
+                # point back to its record by guessing on village + category,
+                # which silently picks the wrong report whenever a village has
+                # more than one.
+                "id": row.id,
                 "issue_category": row.issue_category,
                 "severity": row.severity,
                 "district": row.district,

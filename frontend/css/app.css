@@ -539,6 +539,128 @@ html, body {
 }
 .runnerup__btn:hover { background: var(--cream-deep); }
 
+/* --------------------------------------------------------------- intake -- */
+
+.intake {
+  position: absolute; inset: 0;
+  background: rgba(27, 42, 74, 0.28);
+  backdrop-filter: blur(3px);
+  z-index: 48; display: grid; place-items: center; padding: 30px;
+  opacity: 0; pointer-events: none;
+  transition: opacity 280ms var(--ease);
+}
+.intake--open { opacity: 1; pointer-events: auto; }
+
+.intake__box {
+  width: min(660px, 100%);
+  max-height: 100%;
+  overflow-y: auto;
+  background: var(--paper);
+  border-radius: 16px;
+  padding: 24px 28px 26px;
+  box-shadow: 0 26px 70px rgba(27, 42, 74, 0.26);
+}
+.intake__head { display: flex; align-items: flex-start; gap: 14px; margin-bottom: 16px; }
+.intake__head .sheet__close { margin-left: auto; position: static; }
+.intake__title { font-family: var(--serif); font-size: 23px; font-weight: 700; margin-top: 3px; }
+.intake__lead { font-size: 12.5px; color: var(--body); line-height: 1.5; margin-bottom: 13px; }
+
+.intake textarea {
+  width: 100%; resize: vertical;
+  font-family: var(--sans); font-size: 14px; color: var(--navy);
+  border: 1px solid var(--border); border-radius: 10px;
+  padding: 12px 14px; background: var(--cream); line-height: 1.5;
+}
+.intake textarea:focus { outline: none; border-color: var(--amber); background: #fff; }
+
+.intake__samples { display: flex; flex-wrap: wrap; gap: 6px; margin: 11px 0 16px; }
+.sample {
+  font-size: 11px; cursor: pointer;
+  border: 1px solid var(--border); background: var(--cream);
+  color: var(--body); padding: 6px 10px; border-radius: 999px;
+  transition: all 150ms var(--ease);
+}
+.sample:hover { border-color: var(--amber); color: var(--navy); background: #fff; }
+
+.intake__actions { display: flex; align-items: center; gap: 12px; }
+.intake__file {
+  font-size: 12px; color: var(--body); cursor: pointer;
+  border: 1px dashed var(--border); border-radius: 8px; padding: 9px 13px;
+  transition: all 150ms var(--ease);
+}
+.intake__file:hover { border-color: var(--amber); color: var(--navy); }
+
+/* Pipeline progress — each stage lights as the backend gets to it. */
+.steps { display: flex; flex-direction: column; gap: 3px; }
+.step {
+  display: flex; align-items: center; gap: 11px;
+  padding: 9px 12px; border-radius: 9px;
+  font-size: 12.5px; color: var(--muted);
+  transition: all 260ms var(--ease);
+}
+.step--on { background: var(--cream); color: var(--navy); font-weight: 600; }
+.step--done { color: var(--body); }
+.step__dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--border); flex: 0 0 8px;
+  transition: all 260ms var(--ease);
+}
+.step--on .step__dot { background: var(--amber); box-shadow: 0 0 0 4px rgba(192,120,30,0.18); }
+.step--done .step__dot { background: var(--green); }
+.step__note { margin-left: auto; font-family: var(--mono); font-size: 9.5px; color: var(--muted); }
+
+.result { }
+.result__banner {
+  background: var(--green-bg); border-radius: 10px;
+  padding: 13px 15px; margin-bottom: 16px;
+  font-size: 13px; color: var(--green); font-weight: 600; line-height: 1.45;
+}
+.result__banner--warn { background: var(--amber-soft); color: #7a5a22; }
+.kv { display: grid; grid-template-columns: 140px 1fr; gap: 1px; background: var(--border);
+      border: 1px solid var(--border); border-radius: 10px; overflow: hidden; margin-bottom: 16px; }
+.kv__k, .kv__v { background: var(--paper); padding: 9px 13px; font-size: 12px; }
+.kv__k { color: var(--muted); font-family: var(--mono); font-size: 10px; letter-spacing: 0.05em;
+         text-transform: uppercase; display: flex; align-items: center; }
+.kv__v { color: var(--navy); font-weight: 600; }
+.intake__done-actions { display: flex; gap: 9px; }
+
+/* ------------------------------------------------- reports in the panel -- */
+
+.rep {
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  padding: 10px 12px;
+  margin-bottom: 7px;
+  background: var(--cream);
+}
+.rep__top { display: flex; align-items: center; gap: 7px; margin-bottom: 6px; }
+.rep__lang {
+  font-family: var(--mono); font-size: 8.5px; font-weight: 700; letter-spacing: 0.06em;
+  background: var(--navy); color: #fff; padding: 2px 6px; border-radius: 4px;
+}
+.rep__sev {
+  font-family: var(--mono); font-size: 8.5px; font-weight: 700; letter-spacing: 0.06em;
+  padding: 2px 6px; border-radius: 4px; text-transform: uppercase;
+}
+.rep__sev--high { background: var(--red-bg); color: var(--red); }
+.rep__sev--medium { background: var(--amber-soft); color: #7a5a22; }
+.rep__sev--low { background: var(--green-bg); color: var(--green); }
+.rep__where { margin-left: auto; font-size: 10px; color: var(--muted); }
+.rep__text { font-size: 12px; color: var(--navy); line-height: 1.45; }
+/* Modifier, not element: the JS emits class="rep rep--new". Written as
+   .rep__new this rule matched nothing and the citizen's own report came back
+   from the intake flow looking like every other row. */
+.rep--new { border-color: var(--amber); border-width: 2px; background: #fffaf0; }
+
+.privacy {
+  display: flex; gap: 9px; align-items: flex-start;
+  background: var(--cream); border: 1px dashed var(--border);
+  border-radius: 9px; padding: 10px 12px; margin-bottom: 11px;
+}
+.privacy__icon { font-size: 13px; line-height: 1.2; }
+.privacy__text { font-size: 10.5px; color: var(--body); line-height: 1.45; }
+.privacy__text b { color: var(--navy); }
+
 /* -------------------------------------------------------------- tooltip -- */
 
 .tooltip {

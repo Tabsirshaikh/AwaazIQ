@@ -20,6 +20,22 @@ TEST_CASES = [
         "note": "name prefix should be redacted",
     },
     {
+        "text": "mera naam Ravi Patil hai, sadak kharab hai near Ajra",
+        "should_contain": "Ravi Patil",
+        "note": "self-stated name should be redacted",
+    },
+    {
+        "text": "माझं नाव रवी आहे, पाणी येत नाही",
+        "should_contain": "रवी",
+        "note": "self-stated name in Devanagari should be redacted",
+    },
+    {
+        "text": "gaavache naav Bidri aahe, pani nahi aata",
+        "should_contain": None,
+        "note": "a village's name is not a person's name -- must survive, "
+                "because clustering embeds this text",
+    },
+    {
         "text": "gaon mein bijli nahi hai",
         "should_contain": None,
         "note": "no PII present, should pass through unchanged",

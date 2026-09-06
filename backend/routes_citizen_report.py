@@ -32,9 +32,39 @@ NAME_PREFIX_RE = re.compile(
 )
 
 
+# Self-identification, which is how a citizen actually signs a complaint:
+# "mera naam Ravi Patil", "my name is Ravi", "माझं नाव रवी". The possessive is
+# required on purpose -- matching a bare "naam"/"नाव" would also eat
+# "गावाचे नाव Bidri" ("the village's name is Bidri"), and the village name is
+# the one piece of the text the clustering embedding genuinely needs to keep.
+SELF_NAME_RE = re.compile(
+    r"((?i:\b(?:mera|meraa|maza|majha|mazha|my)\b)\s+"
+    r"|मेरा\s+|मेरे\s+|माझं\s+|माझे\s+|माझ्या\s+)"
+    r"((?i:\b(?:naam|naav|nam|name)\b)|नाम|नाव)"
+    r"((?i:\s+(?:is|hai|aahe|ahe))|\s+है|\s+आहे)?\s+"
+    # One or two name tokens. The lookahead stops the second token from
+    # eating the sentence's verb, so "\u092E\u093E\u091D\u0902 \u0928\u093E\u0935 \u0930\u0935\u0940 \u0906\u0939\u0947" redacts the name and
+    # keeps the "\u0906\u0939\u0947".
+    r"(?:[A-Z][a-zA-Z]*|(?!\u0906\u0939\u0947|\u0906\u0939\u0947\u0924|\u0939\u0948|\u0939\u0948\u0902)[\u0900-\u097F]+)"
+    r"(?:\s+(?:[A-Z][a-zA-Z]*|(?!\u0906\u0939\u0947|\u0906\u0939\u0947\u0924|\u0939\u0948|\u0939\u0948\u0902)[\u0900-\u097F]+))?"
+)
+
+
 def redact_pii(text: str) -> str:
+    """
+    Strip the two identifiers a citizen complaint realistically carries: an
+    Indian mobile number, and a name the writer states about themselves --
+    either after a title ("Shri Kumar") or after a possessive ("mera naam
+    Ravi Patil", "my name is Ravi").
+
+    This is deliberately not a general-purpose name detector; no regex can be
+    one. It removes the forms people actually write, and whatever survives is
+    never joined to an identity downstream, because the schema has no citizen
+    identity column at all.
+    """
     redacted = PHONE_RE.sub("[PHONE]", text)
     redacted = NAME_PREFIX_RE.sub("[NAME]", redacted)
+    redacted = SELF_NAME_RE.sub(r"\1\2\3 [NAME]", redacted)
     return redacted
 
 

@@ -232,6 +232,52 @@
     d3.select("#panel").classed("panel--open", false);
   }
 
+  /**
+   * Fetch and render the citizen reports behind one cluster.
+   *
+   * Note what is deliberately absent: any identity. Phone numbers and
+   * name-prefixes are redacted from the text at ingestion and there is no
+   * citizen identity column at all, so this can show what was said, from
+   * where, in which language and when -- never by whom. The panel states
+   * that outright rather than leaving a viewer to assume the names are
+   * simply missing.
+   */
+  async function loadClusterReports(clusterId, target, highlightId = null) {
+    let data;
+    try {
+      data = await d3.json(`${API}/clusters/${clusterId}/reports`);
+    } catch {
+      target.text("Couldn't load the reports for this cluster.");
+      return;
+    }
+    target.html("");
+
+    const priv = target.append("div").attr("class", "privacy");
+    priv.append("div").attr("class", "privacy__icon").text("🛡");
+    priv.append("div").attr("class", "privacy__text")
+      .html(`<b>${data.report_count} reports · ${data.distinct_texts} distinct</b>. ` +
+            `Phone numbers and self-stated names are stripped at ingestion, and no ` +
+            `citizen identity is stored at all — so this is what the state can see: ` +
+            `what was reported and from where, never by whom.`);
+
+    (data.reports || []).forEach((r) => {
+      const isNew = highlightId != null && r.id === highlightId;
+      const el = target.append("div").attr("class", `rep${isNew ? " rep--new" : ""}`);
+      const top = el.append("div").attr("class", "rep__top");
+      top.append("span").attr("class", "rep__lang").text(r.language_detected || "?");
+      if (r.severity) {
+        top.append("span")
+          .attr("class", `rep__sev rep__sev--${r.severity}`)
+          .text(r.severity);
+      }
+      if (isNew) {
+        top.append("span").attr("class", "rep__sev rep__sev--medium").text("yours");
+      }
+      top.append("span").attr("class", "rep__where").text(r.village || r.block || "—");
+      el.append("div").attr("class", "rep__text").text(r.raw_text || "");
+    });
+  }
+
   function renderPanel(c) {
     const panel = d3.select("#panel");
     const b = c.breakdown || {};
@@ -303,6 +349,20 @@
     const sl = sec.append("div").attr("class", "sumline");
     sl.append("span").attr("class", "sumline__l").text("Sum of all nine terms");
     sl.append("span").attr("class", "sumline__v").text(sum.toFixed(2));
+
+    /* -- the reports that make up this cluster -- */
+    const reps = body.append("div").attr("class", "panel__section");
+    reps.append("div").attr("class", "eyebrow panel__sectionhead").text("Who reported this");
+    reps.append("div").attr("class", "panel__hint")
+      .text("The individual citizen reports that were corroborated into this cluster.");
+    const repsBody = reps.append("div").text("Loading reports…")
+      .style("font-size", "11.5px").style("color", "var(--muted)");
+
+    // ?mine=<report id> is how the intake screen hands the citizen back to
+    // their own report after clustering runs, so it has to be read here --
+    // without it the "yours" badge in loadClusterReports can never fire.
+    const mineId = Number(params.get("mine"));
+    loadClusterReports(c.id, repsBody, Number.isFinite(mineId) && mineId > 0 ? mineId : null);
 
     /* -- counterfactual -- */
     if (runner) {
