@@ -12,6 +12,8 @@ from fastapi.middleware.cors import CORSMiddleware
 
 import models
 from database import Base, engine
+from migrate import run_migrations
+from routes_gazetteer import router as gazetteer_router
 from routes_citizen_report import router as citizen_report_router
 from routes_dashboard import router as dashboard_router
 from routes_intelligence import router as intelligence_router
@@ -29,12 +31,19 @@ app.add_middleware(
 app.include_router(citizen_report_router)
 app.include_router(dashboard_router)
 app.include_router(intelligence_router)
+app.include_router(gazetteer_router)
 app.include_router(test_router)
 
 
 @app.on_event("startup")
 def on_startup():
     Base.metadata.create_all(bind=engine)
+    # create_all adds missing tables but never alters existing ones, so a
+    # column added to a model that already has rows would be missing at
+    # runtime. See migrate.py.
+    applied = run_migrations(engine)
+    if applied:
+        print(f"[migrate] added columns: {', '.join(applied)}")
 
 
 @app.get("/")

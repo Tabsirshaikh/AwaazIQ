@@ -238,3 +238,103 @@ body.citizen { overflow: auto; height: auto; min-height: 100%; }
   .card__actions { flex-direction: column; align-items: stretch; }
   .btn--lg { width: 100%; }
 }
+
+/* ----------------------------------------------------------------- form -- */
+
+.req { color: var(--amber); font-weight: 700; }
+.opt {
+  font-family: var(--sans); font-size: 10px; font-weight: 600;
+  letter-spacing: 0; text-transform: none; color: var(--muted);
+}
+
+/* Two columns on a desktop, one on a phone. `f--wide` and `f--full` span
+   both, for fields where a cramped box would make the answer hard to read. */
+.grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+.f { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.f--wide, .f--full { grid-column: 1 / -1; }
+.f--full { margin-top: 16px; }
+
+.f__label {
+  font-family: var(--mono); font-size: 9.5px; font-weight: 700;
+  letter-spacing: 0.09em; text-transform: uppercase; color: var(--muted);
+}
+.f__hint { font-size: 10.5px; color: var(--muted); line-height: 1.4; }
+
+.f input,
+.f select,
+.f textarea {
+  width: 100%;
+  border: 1.5px solid var(--border);
+  border-radius: 9px;
+  background: var(--cream);
+  padding: 11px 13px;
+  font-family: var(--sans);
+  font-size: 14px;
+  color: var(--navy);
+}
+.f select { cursor: pointer; }
+.f textarea { line-height: 1.55; resize: vertical; }
+.f input:focus,
+.f select:focus,
+.f textarea:focus { outline: none; border-color: var(--amber); background: #fff; }
+.f input:disabled,
+.f select:disabled { opacity: 0.55; cursor: not-allowed; background: var(--cream-deep); }
+
+/* Marks the specific fields named in the error summary, so "3 things need
+   fixing" can be acted on without hunting for which three. */
+.f--bad input,
+.f--bad select,
+.f--bad textarea { border-color: var(--red); background: var(--red-bg); }
+
+.submitrow { display: flex; flex-direction: column; gap: 13px; margin-bottom: 6px; }
+
+.errors {
+  border: 1px solid var(--red);
+  background: var(--red-bg);
+  border-radius: 11px;
+  padding: 14px 17px;
+  color: var(--red);
+}
+.errors__head { font-size: 12.5px; font-weight: 700; margin-bottom: 6px; }
+.errors ul { margin: 0; padding-left: 18px; }
+.errors li { font-size: 12.5px; line-height: 1.6; }
+
+.files { display: flex; flex-direction: column; gap: 6px; margin-top: 11px; }
+.file {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 13px;
+  background: var(--cream);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  font-size: 12px;
+}
+.file__name {
+  flex: 1; min-width: 0; color: var(--navy); font-weight: 600;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.file__size { font-family: var(--mono); font-size: 10.5px; color: var(--muted); }
+.file__x {
+  border: none; background: none; cursor: pointer;
+  color: var(--muted); font-size: 17px; line-height: 1; padding: 0 3px;
+}
+.file__x:hover { color: var(--red); }
+
+@media (max-width: 600px) {
+  .grid { grid-template-columns: 1fr; }
+  .f--wide { grid-column: auto; }
+}
+
+/* The upload labels now stand alone rather than sitting in a flex row, so
+   they need to claim the full width themselves -- a bare <label> is inline
+   and would shrink to its text. */
+.filebtn { display: block; }
+
+/* A submit button stretched across 720px reads as a banner, not a button. */
+.submitrow .btn--lg { align-self: flex-start; }
+@media (max-width: 600px) {
+  .submitrow .btn--lg { align-self: stretch; }
+}

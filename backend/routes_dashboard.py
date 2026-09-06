@@ -10,7 +10,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from database import get_db
-from models import CitizenRequest, DemandCluster, PriorityScore
+from models import CitizenRequest, DemandCluster, PriorityScore, ReportAttachment
 from routes_citizen_report import serialize_citizen_request
 
 router = APIRouter()
@@ -116,11 +116,19 @@ def cluster_reports(
 
     This is what lets the dashboard answer "who reported this?" -- and the
     honest answer is that it can show WHAT was reported, from WHERE, in WHICH
-    language and WHEN, but never WHO. There is no citizen identity column, and
-    phone numbers and name-prefixes are redacted from the text at ingestion
-    before it is ever stored (routes_citizen_report.redact_pii). That is a
-    deliberate privacy property carried from the DPDP Act design, not a gap to
-    be filled in later.
+    language and WHEN, but never WHO.
+
+    Identity does exist. The intake form collects the CPGRAMS field set, so a
+    complaint can be answered and followed up. It is stored in
+    citizen_identity, and this endpoint does not join to it -- nor does
+    clustering, scoring, or any other dashboard route. Phone numbers and
+    self-stated names are additionally redacted from `raw_text` at ingestion
+    (routes_citizen_report.redact_pii), so identity cannot leak through the
+    text either.
+
+    So an official planning where to spend money sees demand, not people. That
+    separation is the DPDP Act design decision, and it is enforced by which
+    tables this file is allowed to read -- not by hoping nobody asks.
     """
     cluster = db.query(DemandCluster).filter(DemandCluster.id == cluster_id).first()
     if cluster is None:
@@ -186,6 +194,23 @@ def citizen_report_status(report_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail=f"Report {report_id} not found")
 
     payload = {"report": serialize_citizen_request(report), "cluster": None}
+
+    # Confirm the evidence arrived. Metadata only, and no identity: this
+    # endpoint is unauthenticated and addressed by a guessable integer, so
+    # anything it returns is effectively public. That is exactly why
+    # citizen_identity is not read here.
+    payload["attachments"] = [
+        {
+            "id": a.id,
+            "filename": a.original_filename,
+            "size_bytes": a.size_bytes,
+            "content_type": a.content_type,
+        }
+        for a in db.query(ReportAttachment)
+        .filter(ReportAttachment.linked_request_id == report_id)
+        .order_by(ReportAttachment.id)
+        .all()
+    ]
 
     if report.village is None:
         payload["status"] = "unresolved"

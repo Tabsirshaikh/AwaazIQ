@@ -11,3 +11,6 @@ venv/
 *.log
 *.pid
 backend/jjm_cache.json
+
+# Citizen evidence uploads: real photos of real places, never committed.
+backend/uploads/

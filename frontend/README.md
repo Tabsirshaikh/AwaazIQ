@@ -65,31 +65,72 @@ If the API is on a different port, pass it: `?api=http://127.0.0.1:8010`.
 
 ## The citizen loop
 
-`report.html` closes the circle the dashboard only reads from.
+`report.html` closes the circle the dashboard only reads from. Its field set
+is modelled on CPGRAMS, the Government of India's public grievance portal,
+because a complaint system that asks for less than CPGRAMS does is not one a
+department could actually act on.
 
-1. A complaint is typed (or spoken, as an audio upload) in Hindi, Marathi,
-   English or a mix.
-2. `POST /citizen-report` runs the real pipeline. The result screen shows each
-   stage's actual output — language, problem, urgency, the place phrase, the
-   village it geocoded to, and the text as stored *after* redaction — and
-   marks any stage that could not resolve rather than showing a tick.
-3. The citizen gets a report number. It is also kept in `localStorage` so the
-   page can offer it back later; that list never leaves the device, and the
-   server could not store it anyway.
+### What CPGRAMS asks for, and what we do
+
+| CPGRAMS | AwaazIQ |
+|---|---|
+| Register an account first — "grievance can now be lodged only by registered users" | No account, no password. Identity is captured per report |
+| Name, gender, address, pincode, mobile, e-mail | Same, all mandatory |
+| Mobile verified by OTP | Not implemented — no SMS gateway |
+| Country → state → district dropdowns | State → district → **block → village**, one level deeper, from our own gazetteer |
+| Ministry → Department → Sub-organisation | Problem type → line department (PWD, ZP Works, ZP Water, MJP, ZP Health, DHO, ZP Education, DEO) |
+| Subject + description up to 4,000 chars | Free-text description in any language, or an audio recording |
+| Attachments: PDF, 4 MB each, up to 5 | Photos or PDF, 4 MB each, up to 5 |
+| Unique registration number, status tracked against it | Same |
+
+The account is the deliberate omission. A villager filing one complaint in
+their life should not have to invent and remember a credential, and an
+account is not what makes a grievance actionable — a reachable person and a
+resolvable place are, and both are collected here.
+
+The village dropdown is the deliberate addition. Every option it offers is a
+village the geocoder already knows, so a complaint cannot be stranded by a
+place name nobody could match. Reports filed this way arrive with real
+coordinates and can always be clustered.
+
+### The flow
+
+1. The citizen fills the form. Client-side validation mirrors the server's
+   rules and names each field that needs fixing; the server enforces all of
+   it again regardless.
+2. `POST /citizen-report` runs the real pipeline over the description. The
+   result screen shows each stage's actual output and marks any stage that
+   could not resolve, rather than showing a tick.
+3. Where the citizen's chosen problem type disagrees with what the pipeline
+   read in the description, the receipt says so. Routing follows the citizen's
+   choice; grouping follows the description, because that is what gets
+   compared against other people's descriptions.
 4. `GET /citizen-report/{id}` answers the tracking view with one of three
    honest states:
 
 | State | Means |
 |---|---|
-| Needs a place | The location could not be matched to a known village, so it can never join a cluster as written |
-| Waiting for others | Resolved, but no corroborating reports yet. One report is not a demand signal — this is normal, not an error |
-| Grouped and ranked | Folded into a cluster, shown with its report count, distinct reporters, people affected, score and rank |
+| Needs a place | Location never resolved, so it cannot join a cluster as written |
+| Waiting for others | Resolved, but no corroborating reports yet. Normal for a fresh complaint, not an error |
+| Grouped and ranked | In a cluster, with report count, distinct reporters, people affected, score and rank |
 
-**What the dashboard deliberately cannot show is who reported.** There is no
-citizen identity column in the schema; phone numbers and self-stated names are
-redacted before the text is stored (`redact_pii`), while the untouched
-original is kept in `citizen_request_raw`. The cluster panel states this
-outright, so a viewer reads it as a design property rather than missing data.
+### Identity, and why the dashboard still cannot see it
+
+Identity **is** collected now — it has to be, or nobody can be replied to.
+It goes to `citizen_identity`, a table that nothing in the analytics or
+dashboard path reads. `clusters`, `clusters/{id}/reports`, `citizen-reports`,
+`map-data` and `citizen-report/{id}` were each checked against a stored name,
+mobile, e-mail, pincode and address, and none returns any of them.
+
+Phone numbers and self-stated names are additionally stripped from the
+description itself before storage (`redact_pii`), because `raw_text` is what
+clustering embeds and what the officials' panel renders. The untouched
+original stays in `citizen_request_raw`.
+
+So the cluster panel's claim holds exactly as before: it can show what was
+reported, from where, in which language and when — never by whom. The
+difference is that this is now enforced by which tables the dashboard is
+allowed to read, rather than by the fact never having been recorded.
 
 ## Deep links
 
@@ -111,6 +152,16 @@ On the citizen page:
 |---|---|
 | `report.html` | A blank complaint form |
 | `report.html?track=2014` | That report's status, looked up on load |
+
+Backing endpoints added for the form:
+
+| Endpoint | Returns |
+|---|---|
+| `GET /gazetteer/districts` | Districts that have data |
+| `GET /gazetteer/blocks?district=` | Blocks in a district |
+| `GET /gazetteer/villages?district=&block=` | Villages, with coordinates |
+| `GET /gazetteer/departments[?category=]` | Line departments per issue type |
+| `GET /report-attachment/{id}` | One evidence file |
 
 `?compare=18,1` is the one worth bookmarking for a demo: Ajra wins on 7
 reports against Shirol's 18, and the verdict line explaining why is generated

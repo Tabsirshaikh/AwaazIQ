@@ -29,6 +29,11 @@ class CitizenRequest(Base):
     longitude = Column(Float)
     confidence = Column(Float)
     is_synthetic = Column(Boolean, default=False)
+    # Which line department the complaint is routed to -- our equivalent of
+    # CPGRAMS's Ministry -> Department -> Sub-organisation choice. Not personal
+    # data, so it belongs on the analytical record rather than in
+    # CitizenIdentity. NULL on the 1,000 seeded reports, which predate routing.
+    department = Column(Text, nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     # Set by P3's clustering pass (build plan P3 Step 3). NULL means the
     # report has not been clustered, or DBSCAN judged it noise -- a lone
@@ -42,6 +47,67 @@ class CitizenRequestRaw(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     original_text = Column(Text)
     linked_request_id = Column(Integer, ForeignKey("citizen_request.id"))
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+
+class CitizenIdentity(Base):
+    """
+    Who filed a report -- kept in its own table, on purpose.
+
+    CPGRAMS requires a registered account before a grievance can be lodged:
+    name, gender, full postal address, state, district, pincode, e-mail and a
+    mobile number. A grievance with no one behind it cannot be answered, sent
+    back for more detail, or checked for abuse, so collecting this is what
+    makes a complaint system real rather than a suggestion box.
+
+    It lives apart from CitizenRequest because the analytical half of this
+    system must not be able to reach it. Clustering embeds `raw_text`;
+    scoring reads counts and coordinates; the officials' dashboard serves
+    CitizenRequest rows. None of them join to this table, and no endpoint
+    returns it. So the dashboard still cannot answer "who reported this" --
+    now because the join is absent by design rather than because the fact was
+    never recorded.
+
+    The practical difference from CPGRAMS: there is no account and no
+    password. A villager filing one complaint in their life should not have
+    to invent and remember a credential, so identity is captured per report.
+    """
+
+    __tablename__ = "citizen_identity"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    linked_request_id = Column(Integer, ForeignKey("citizen_request.id"), index=True)
+
+    full_name = Column(Text)
+    gender = Column(Text)              # male | female | transgender
+    mobile = Column(Text)
+    email = Column(Text)
+    address = Column(Text)             # house / street, as written
+    pincode = Column(Text)
+    state = Column(Text)
+
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+
+class ReportAttachment(Base):
+    """
+    Evidence a citizen attached: a photo of the broken road, the dry
+    borewell, the shut clinic -- or a PDF, as CPGRAMS accepts.
+
+    Only metadata lives here; bytes are written under backend/uploads/ and
+    named by a generated token, never by the uploader's filename, so a
+    crafted name cannot escape the directory or overwrite anything.
+    """
+
+    __tablename__ = "report_attachment"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    linked_request_id = Column(Integer, ForeignKey("citizen_request.id"), index=True)
+
+    original_filename = Column(Text)   # for display only, never used as a path
+    stored_name = Column(Text)         # the on-disk name we generated
+    content_type = Column(Text)
+    size_bytes = Column(Integer)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 

@@ -24,46 +24,181 @@
   <section class="hero">
     <h1 class="hero__title">Report a problem in your area</h1>
     <p class="hero__lead">
-      Write in Hindi, Marathi, English or a mix of them — however you speak.
-      You do not need an account, and you are never asked for your name.
+      Describe the problem in Hindi, Marathi, English or a mix of them —
+      however you speak. Fields marked <b class="req">*</b> are required.
     </p>
   </section>
 
-  <!-- ------------------------------------------------------------- form -- -->
-  <section class="card" id="formCard">
-    <div class="card__head">
-      <span class="eyebrow">Your complaint</span>
-    </div>
+  <form id="form" novalidate>
 
-    <textarea id="text" rows="4"
-      placeholder="e.g. hamare gaon mein sadak bahut kharab hai near Ajra"></textarea>
+    <!-- ------------------------------------------------------ reporter -- -->
+    <section class="card" data-step="1">
+      <div class="card__head">
+        <span class="eyebrow">1 — Who is reporting</span>
+      </div>
+      <p class="card__lead">
+        So the department can reach you if they need more detail, and so the
+        same problem is not counted twice.
+      </p>
 
-    <div class="samples" id="samples"></div>
+      <div class="grid">
+        <label class="f f--wide">
+          <span class="f__label">Full name <b class="req">*</b></span>
+          <input type="text" id="full_name" autocomplete="name" />
+        </label>
 
-    <div class="card__actions">
+        <label class="f">
+          <span class="f__label">Gender <b class="req">*</b></span>
+          <select id="gender">
+            <option value="">Select…</option>
+            <option value="female">Female</option>
+            <option value="male">Male</option>
+            <option value="transgender">Transgender</option>
+          </select>
+        </label>
+
+        <label class="f">
+          <span class="f__label">Mobile number <b class="req">*</b></span>
+          <input type="tel" id="mobile" inputmode="numeric" maxlength="10"
+                 placeholder="10 digits" autocomplete="tel" />
+        </label>
+
+        <label class="f">
+          <span class="f__label">E-mail <b class="req">*</b></span>
+          <input type="email" id="email" placeholder="you@example.com"
+                 autocomplete="email" />
+        </label>
+
+        <label class="f">
+          <span class="f__label">Pincode <b class="req">*</b></span>
+          <input type="text" id="pincode" inputmode="numeric" maxlength="6"
+                 placeholder="6 digits" autocomplete="postal-code" />
+        </label>
+
+        <label class="f f--wide">
+          <span class="f__label">Address <b class="req">*</b></span>
+          <input type="text" id="address" placeholder="House and street"
+                 autocomplete="street-address" />
+        </label>
+      </div>
+    </section>
+
+    <!-- ------------------------------------------------------ location -- -->
+    <section class="card" data-step="2">
+      <div class="card__head">
+        <span class="eyebrow">2 — Where the problem is</span>
+      </div>
+      <p class="card__lead">
+        Choose the village from the list rather than typing it. Every village
+        here is one the system can already place on the map, so your report
+        can be grouped with your neighbours' instead of getting stuck.
+      </p>
+
+      <div class="grid">
+        <label class="f">
+          <span class="f__label">State <b class="req">*</b></span>
+          <select id="state"><option value="Maharashtra">Maharashtra</option></select>
+          <span class="f__hint">Pilot covers Maharashtra only</span>
+        </label>
+
+        <label class="f">
+          <span class="f__label">District <b class="req">*</b></span>
+          <select id="district"><option value="">Loading…</option></select>
+        </label>
+
+        <label class="f">
+          <span class="f__label">Block / Taluka <b class="req">*</b></span>
+          <select id="block" disabled><option value="">Select a district first</option></select>
+        </label>
+
+        <label class="f">
+          <span class="f__label">Village <b class="req">*</b></span>
+          <select id="village" disabled><option value="">Select a block first</option></select>
+        </label>
+      </div>
+    </section>
+
+    <!-- ------------------------------------------------------- problem -- -->
+    <section class="card" data-step="3">
+      <div class="card__head">
+        <span class="eyebrow">3 — What the problem is</span>
+      </div>
+
+      <div class="grid">
+        <label class="f">
+          <span class="f__label">Type of problem <b class="req">*</b></span>
+          <select id="category">
+            <option value="">Select…</option>
+            <option value="road">Road</option>
+            <option value="water">Water</option>
+            <option value="health">Health</option>
+            <option value="education">Education</option>
+          </select>
+        </label>
+
+        <label class="f">
+          <span class="f__label">Send to department <b class="req">*</b></span>
+          <select id="department" disabled>
+            <option value="">Select a problem type first</option>
+          </select>
+          <span class="f__hint" id="deptHint">The office that holds the budget for this</span>
+        </label>
+      </div>
+
+      <label class="f f--full">
+        <span class="f__label">Describe the problem <b class="req">*</b></span>
+        <textarea id="text" rows="4"
+          placeholder="e.g. hamare gaon mein sadak bahut kharab hai"></textarea>
+      </label>
+
+      <div class="samples" id="samples"></div>
+
       <label class="filebtn">
         <input type="file" id="audio" accept="audio/*" hidden />
-        <span id="audioLabel">🎙 Record or upload audio instead</span>
+        <span id="audioLabel">🎙 Or record it and upload the audio instead</span>
       </label>
-      <button class="btn btn--primary btn--lg" id="submit">SEND REPORT</button>
+    </section>
+
+    <!-- ------------------------------------------------------ evidence -- -->
+    <section class="card" data-step="4">
+      <div class="card__head">
+        <span class="eyebrow">4 — Evidence <span class="opt">optional</span></span>
+      </div>
+      <p class="card__lead">
+        A photo of the broken road, the dry borewell, the shut clinic. Up to 5
+        files, 4 MB each. Photos or PDF.
+      </p>
+      <label class="filebtn">
+        <input type="file" id="attachments" accept="image/*,application/pdf" multiple hidden />
+        <span id="attachLabel">📎 Choose photos or PDFs</span>
+      </label>
+      <div class="files" id="fileList"></div>
+    </section>
+
+    <div class="submitrow">
+      <div class="errors" id="errors" hidden></div>
+      <button type="submit" class="btn btn--primary btn--lg" id="submit">SEND REPORT</button>
     </div>
 
     <p class="fineprint">
-      Phone numbers and names you write about yourself are removed before your
-      report is stored. Your report is never linked to your identity.
+      Your name, mobile, e-mail and address are stored so the department can
+      reply to you. They are kept apart from the analysis: the officials'
+      planning dashboard is built from what was reported and where, and cannot
+      read who reported it. Phone numbers and names written inside the
+      description itself are removed before it is stored.
     </p>
-  </section>
+  </form>
 
-  <!-- --------------------------------------------------------- pipeline -- -->
+  <!-- -------------------------------------------------------- pipeline -- -->
   <section class="card" id="runCard" hidden>
     <div class="card__head"><span class="eyebrow">Reading your report</span></div>
     <div class="steps" id="steps"></div>
   </section>
 
-  <!-- ---------------------------------------------------------- receipt -- -->
+  <!-- --------------------------------------------------------- receipt -- -->
   <section class="card" id="doneCard" hidden></section>
 
-  <!-- ------------------------------------------------------------ track -- -->
+  <!-- ----------------------------------------------------------- track -- -->
   <section class="card card--quiet" id="trackCard">
     <div class="card__head">
       <span class="eyebrow">Track a report</span>
