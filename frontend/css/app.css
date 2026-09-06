@@ -890,3 +890,26 @@ html, body {
   .dock__cols { grid-template-columns: 1fr 1fr; }
   .dock__col:nth-child(2) { border-right: none; }
 }
+
+/* ---------------------------------------------------- collapsible rail -- */
+
+.railtoggle {
+  flex: 0 0 auto;
+  width: 30px; height: 30px;
+  border: 1px solid var(--border); background: var(--paper);
+  border-radius: 8px; cursor: pointer;
+  color: var(--navy); font-size: 14px; line-height: 1;
+  transition: all 160ms var(--ease);
+}
+.railtoggle:hover { background: var(--navy); color: #fff; border-color: var(--navy); }
+
+/* Collapsing the grid column rather than sliding the rail out from under
+   the map: the map's column genuinely widens, so sizeToStage picks up the
+   new width and the projection refits into it. */
+.app { transition: grid-template-columns 320ms var(--ease); }
+.app--railclosed { grid-template-columns: 0 1fr; }
+.app--railclosed .rail { overflow: hidden; border-right: none; }
+
+/* The dock covers most of the page: at cluster level the map only needs to
+   show where the cluster is, and the evidence below is what is being read. */
+.dock { height: 74%; }

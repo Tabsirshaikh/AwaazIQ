@@ -291,6 +291,18 @@
     median_cost_lakh_per_km: ["Median cost of comparable work", " lakh/km"],
     works_sampled: ["Works averaged", ""],
     dimensions_used: ["Deprivation measures used", ""],
+    share_without_middle_school: ["Villages with no middle school", "%"],
+    share_without_secondary_school: ["Villages with no secondary school", "%"],
+    rte_upper_primary_limit_km: ["RTE limit for upper primary", " km"],
+    share_failing_in_summer: ["Villages whose tap fails in summer", "%"],
+    iphs_subcentre_shortfall: ["Sub-centre shortfall against norm", "%"],
+    doctor_vacancy_rate: ["Sanctioned doctor posts vacant", "%"],
+    // Sub-keys of the nested facilities/doctors blocks.
+    sub_centre: ["Sub-centres", ""],
+    phc: ["Primary health centres", ""],
+    chc: ["Community health centres", ""],
+    sanctioned: ["Doctor posts sanctioned", ""],
+    in_position: ["Doctors actually in post", ""],
   };
 
   // Fields that are text or explanatory rather than measurements.
@@ -314,6 +326,24 @@
 
     Object.entries(block).forEach(([key, value]) => {
       if (value === null || value === undefined) return;
+
+      // Nested blocks -- `facilities: {sub_centre: 6, phc: 0, chc: 1}` and
+      // `doctors: {sanctioned: 2, in_position: 0}` -- are flattened into one
+      // row each. Falling through to String() rendered them as the literal
+      // text "[object Object]", which is exactly the counts an officer most
+      // wants from a health cluster.
+      if (typeof value === "object" && !Array.isArray(value)) {
+        renderEvidence(target, value);
+        return;
+      }
+
+      if (typeof value === "boolean") {
+        const r = target.append("div").attr("class", "ev");
+        r.append("span").attr("class", "ev__k")
+          .text(key === "eligible" ? "Meets the rule" : prettyKey(key));
+        r.append("span").attr("class", "ev__v").text(value ? "Yes" : "No");
+        return;
+      }
 
       // Lists of names read better as a sentence than as a table row.
       if (Array.isArray(value)) {
@@ -455,6 +485,12 @@
       t.append("div").attr("class", "term__src").text(source);
       evTargets[key] = t.append("div").attr("class", "term__ev")
         .text("Loading the record…");
+
+      // Open by default. The evidence is the point of the dock -- a term
+      // that has to be discovered behind a caret reads as if it has no
+      // backing at all, which was the first thing anyone said about it.
+      t.classed("term--open", true);
+      r.select(".term__caret").text("▾");
 
       r.on("click", () => {
         const open = !t.classed("term--open");
@@ -769,6 +805,14 @@
   async function navigate(level, opts = {}) {
     hideTip();
 
+    // A resize is not a journey. Re-fitting after the rail collapses or the
+    // dock opens lands on a new transform for the SAME place, and animating
+    // between two deep-zoom transforms interpolates the translate linearly --
+    // at scale 77 the view swoops through thousands of pixels of empty land
+    // and the map appears to blank out before coming back. Instant is both
+    // less jarring and more truthful: nothing actually moved.
+    const dur = opts.instant ? 0 : 900;
+
     if (level === "india") {
       closePanel();
       Object.assign(nav, { level, state: null, district: null, cluster: null });
@@ -779,7 +823,7 @@
       drawStates();
       drawClusters([]);
       drawLabels([], "st_nm");
-      animateTo(view);
+      animateTo(view, dur);
       d3.select("#legendNote").text(
         "Maharashtra is the active pilot. Other states are shown for context only — " +
         "they carry no citizen data yet.");
@@ -800,7 +844,7 @@
           (d) => d.properties.st_nm === opts.state &&
                  clusters.some((c) => c.district === d.properties.district)),
         "district");
-      animateTo(view);
+      animateTo(view, dur);
       d3.select("#legendNote").text(
         "Highlighted districts have citizen data. Bubbles are demand clusters, " +
         "sized by population affected.");
@@ -816,7 +860,7 @@
       drawOutline(feat);
       drawLabels([], "district");
       drawClusters(clusters.filter((c) => c.district === opts.district));
-      animateTo(view);
+      animateTo(view, dur);
 
       const pts = await ensureReports();
       drawReports(pts.filter((f) => f.properties.district === opts.district));
@@ -845,7 +889,7 @@
       view = pointTransform(c.centroid_lon, c.centroid_lat, base * 3.2);
       drawClusters(clusters.filter((x) => x.district === nav.district));
       gClusters.selectAll("circle").classed("cluster--faded", (d) => d.id !== c.id);
-      animateTo(view);
+      animateTo(view, dur);
       renderPanel(c);
       d3.select("#legendNote").text(
         `Cluster ${c.id} — ${c.report_count} reports from ${c.unique_reporters} ` +
@@ -905,6 +949,7 @@
     gOutline.selectAll("path").attr("d", path);
     navigate(nav.level, {
       state: nav.state, district: nav.district, cluster: nav.cluster,
+      instant: true,
     });
   }
 
@@ -1001,6 +1046,21 @@
     clearTimeout(resizeTimer);
     resizeTimer = setTimeout(refit, 180);
   });
+
+  // Collapse the ranking rail. The grid column itself closes, so the map
+  // genuinely gets the width rather than being overlapped -- refit is called
+  // after the column transition settles, or the projection would be fitted
+  // to a width the stage is still animating through.
+  const railBtn = document.getElementById("railToggle");
+  if (railBtn) {
+    railBtn.addEventListener("click", () => {
+      const app = document.querySelector(".app");
+      const closed = app.classList.toggle("app--railclosed");
+      railBtn.setAttribute("aria-expanded", String(!closed));
+      railBtn.title = closed ? "Show the priority ranking" : "Hide the priority ranking";
+      setTimeout(refit, 340);
+    });
+  }
 
   /* --------------------------------------------------------------- api ---- */
 
