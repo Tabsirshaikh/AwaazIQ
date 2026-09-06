@@ -22,7 +22,13 @@ if str(_REPO_ROOT) not in sys.path:
 if str(_REPO_ROOT / "backend") not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT / "backend"))
 
-from models import CitizenRequest, DemandCluster, Gazetteer, PriorityScore  # noqa: E402
+from models import (  # noqa: E402
+    CitizenRequest,
+    DemandCluster,
+    Gazetteer,
+    PriorityScore,
+    WorkGroup,
+)
 
 from . import config  # noqa: E402
 from . import realdata  # noqa: E402
@@ -151,6 +157,95 @@ def _attach_stragglers(
     return attached
 
 
+# ---------------------------------------------------------------------------
+# Work groups -- which specific thing inside a cluster is broken
+# ---------------------------------------------------------------------------
+
+# How close two reports must sit to count as the same broken thing. 250 m is
+# well under the span of a village but far above GPS jitter, so two people
+# standing at one culvert group together while two ends of a village do not.
+WORK_GROUP_RADIUS_M = 250.0
+
+
+def _work_groups(members: list[dict]) -> list[dict]:
+    """
+    Split one cluster's reports into the units a crew would actually be sent to.
+
+    The cluster answers "which area and which sector deserves money". It was
+    never able to answer "which road", because every report carries its
+    village's centroid: inside a village the geographic distance between two
+    reports is exactly zero, so nothing could separate them.
+
+    Single-linkage agglomeration at WORK_GROUP_RADIUS_M: a report joins a
+    group if it is within that distance of ANY report already in it, so
+    complaints strung along one road stay one group instead of fragmenting.
+    Clusters hold at most a few dozen reports, so the O(n^2) sweep costs
+    nothing and avoids the tuning a second DBSCAN pass would need.
+
+    Today this resolves to one group per village -- already worth showing,
+    since a cluster routinely spans several. Once the intake form supplies a
+    GPS pin, the identical code separates two roads inside one village with no
+    change here.
+    """
+    groups: list[list[dict]] = []
+
+    def near(a: dict, b: dict) -> bool:
+        return haversine_km(
+            a["latitude"], a["longitude"], b["latitude"], b["longitude"]
+        ) * 1000.0 <= WORK_GROUP_RADIUS_M
+
+    for member in members:
+        joined = next((g for g in groups if any(near(member, o) for o in g)), None)
+        if joined is None:
+            groups.append([member])
+        else:
+            joined.append(member)
+
+    # Single-linkage needs a settling pass: two groups can both be within
+    # range of a report seen only after each had already started.
+    merged = True
+    while merged:
+        merged = False
+        for i in range(len(groups)):
+            for j in range(i + 1, len(groups)):
+                if any(near(a, b) for a in groups[i] for b in groups[j]):
+                    groups[i].extend(groups.pop(j))
+                    merged = True
+                    break
+            if merged:
+                break
+
+    out: list[dict] = []
+    for group in groups:
+        lat = sum(m["latitude"] for m in group) / len(group)
+        lon = sum(m["longitude"] for m in group) / len(group)
+        spread = max(
+            (haversine_km(lat, lon, m["latitude"], m["longitude"]) * 1000.0 for m in group),
+            default=0.0,
+        )
+        village = _modal([m.get("village") for m in group])
+        block = _modal([m.get("block") for m in group])
+        # The longest complaint carries the most detail for an officer; the
+        # shortest are usually just "road bad".
+        sample = max((m.get("raw_text") or "" for m in group), key=len, default="")
+        out.append(
+            {
+                "label": village or block or "Unnamed location",
+                "centroid_lat": lat,
+                "centroid_lon": lon,
+                "report_count": len(group),
+                "distinct_reporters": _unique_reporters(group),
+                "spread_m": round(spread, 1),
+                "village": village,
+                "block": block,
+                "sample_text": sample[:300],
+            }
+        )
+
+    out.sort(key=lambda g: g["report_count"], reverse=True)
+    return out
+
+
 def recompute(db, verbose: bool = True) -> dict:
     """Run the full P3 pass. Returns a summary dict."""
 
@@ -188,6 +283,10 @@ def recompute(db, verbose: bool = True) -> dict:
     # --- clear the previous pass -------------------------------------------
     db.query(CitizenRequest).update({CitizenRequest.cluster_id: None}, synchronize_session=False)
     db.query(PriorityScore).delete(synchronize_session=False)
+    # Work groups belong to clusters that are about to be deleted, so they go
+    # first -- otherwise the next pass accumulates orphans pointing at cluster
+    # ids that have been reused for something else entirely.
+    db.query(WorkGroup).delete(synchronize_session=False)
     db.query(DemandCluster).delete(synchronize_session=False)
     db.commit()
 
@@ -224,6 +323,11 @@ def recompute(db, verbose: bool = True) -> dict:
                 {CitizenRequest.cluster_id: cluster.id}, synchronize_session=False
             )
 
+        # Which specific things inside this cluster are broken.
+        groups = _work_groups(members)
+        for group in groups:
+            db.add(WorkGroup(cluster_id=cluster.id, **group))
+
         # --- what the government's own records say about this place --------
         nearby_villages = realdata.villages_near(centroid_lat, centroid_lon, amenity_index)
 
@@ -258,12 +362,40 @@ def recompute(db, verbose: bool = True) -> dict:
             scheme_eligible=eligible if eligibility_evidence else None,
             real_hq_distance_km=hq_km,
         )
+        # Everything a reader needs to check a term rather than take it on
+        # trust: which villages were counted and how many people live in them,
+        # which scheme and which rule, what a comparable work has actually
+        # cost. All of it was already computed to produce the score.
+        counted = sorted(
+            (v for v in nearby_villages if v.get("population")),
+            key=lambda v: v["population"],
+            reverse=True,
+        )
         result["evidence"] = {
+            "demand": {
+                "distinct_reporters": cluster.unique_reporters,
+                "total_reports": len(members),
+                "saturates_at": config.DEMAND_SATURATION_REPORTERS,
+                "settlements": cluster.settlement_count,
+            },
+            "population": {
+                "people_affected": population_affected,
+                "catchment_radius_km": config.CATCHMENT_RADIUS_KM.get(
+                    category, config.DEFAULT_CATCHMENT_RADIUS_KM
+                ),
+                "villages_in_catchment": len(nearby_villages),
+                "largest_villages": [
+                    {"name": v["name"], "population": v["population"]}
+                    for v in counted[:5]
+                ],
+            },
             "infra_deficit": infra_evidence,
             "vulnerability": vulnerability_evidence,
             "reporting_capacity": reporting_evidence,
             "scheme_eligibility": eligibility_evidence,
             "feasibility": hq_evidence,
+            "cost_benchmark": realdata.cost_benchmark(category, works_index),
+            "work_groups": len(groups),
             "villages_examined": len(nearby_villages),
         }
         scored.append((cluster, result))
@@ -283,6 +415,7 @@ def recompute(db, verbose: bool = True) -> dict:
                 cluster_id=cluster.id,
                 priority_score=result["priority_score"],
                 breakdown=json.dumps(result["breakdown"]),
+                evidence=json.dumps(result["evidence"], default=str),
                 runner_up_cluster_id=runner_up,
             )
         )

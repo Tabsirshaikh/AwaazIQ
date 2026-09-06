@@ -20,6 +20,11 @@ ADDED_COLUMNS: dict[str, dict[str, str]] = {
         # Line-department routing, added with the CPGRAMS-level intake form.
         "department": "TEXT",
     },
+    "priority_score": {
+        # The working behind each score term, so a number can be interrogated
+        # rather than only read.
+        "evidence": "TEXT",
+    },
 }
 
 

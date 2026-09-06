@@ -58,7 +58,7 @@ If the API is on a different port, pass it: `?api=http://127.0.0.1:8010`.
 |---|---|
 | **Rail** (left) | Ranked worklist, filtered by category, following whatever the map is showing. Tick two rows to compare them. |
 | **Map** (centre) | The zoom ladder — India → Maharashtra → district → cluster |
-| **Detail panel** (right) | Opens on a cluster: the nine terms with their sources, a sum line proving they add to the score, and "why not the runner-up" |
+| **Detail dock** (below the map) | Opens on a cluster, full width, in three columns: the nine terms — each expanding onto the record it was computed from — then the work groups, then the reports and the runner-up |
 | **What-if sheet** (bottom) | Adds budget to a district and re-scores; the rail shows deltas and reorders |
 | **Compare** (overlay) | Two clusters side by side, term by term, with a verdict generated from their actual numbers |
 | **Run clustering** (top bar) | Officials-only. Re-runs the whole P3 pass, then reloads — every cluster id may have changed |
@@ -132,6 +132,45 @@ reported, from where, in which language and when — never by whom. The
 difference is that this is now enforced by which tables the dashboard is
 allowed to read, rather than by the fact never having been recorded.
 
+## Reading a score, not just seeing one
+
+Every term in the dock opens onto its own working. The engine already computed
+all of it to produce the number and then discarded it; it is now persisted on
+`priority_score.evidence` and returned by `GET /clusters/{id}`.
+
+| Term | Opens onto |
+|---|---|
+| Citizen demand | Distinct reporters, total reports, the 25-reporter cap, settlements |
+| Population affected | The headcount, the catchment radius, how many villages were counted, and the largest of them by name |
+| Infrastructure deficit | Facility counts against the scheme's own norm; for roads, sanctioned works still undelivered, their rupee value and the oldest sanction year |
+| Deprivation | Distance to district HQ, summer power hours, drainage and internet-centre shares |
+| Equity — silent need | Gram panchayats checked against BharatNet and how many have fibre down |
+| Scheme eligibility | **Which scheme**, its exact rule, entitled-versus-existing, and what comparable work has actually cost |
+| Feasibility | The Census-recorded distance to the sub-district HQ |
+
+So "scheme eligibility +4.00" reads as *PMGSY, rule "population ≥ 500 and no
+all-weather road", qualifying village Girgaon, comparable work ₹27.19 lakh/km
+across 159 sanctioned works.* And "infrastructure deficit +14.17" reads as
+*two sanctioned works undelivered, ₹491.3 lakh already committed, the oldest
+sanctioned in 2006.*
+
+## Which specific thing is broken
+
+A cluster answers *where* the money should go. It could never answer *which
+road*, because every report carries its village's centroid — inside a village
+the geographic distance between two reports is exactly zero, so nothing
+separated them.
+
+`work_group` is the answer: reports within 250 m of each other, grouped by
+single-linkage, rebuilt on every recompute. The cluster stays the funding
+unit; a work group is the place a crew is sent.
+
+Today a group resolves to a village, which is already worth showing since a
+cluster routinely spans several. When the intake form supplies a GPS pin the
+identical code separates two roads inside one village, with no change to the
+grouping. The panel says which of those two situations it is looking at
+rather than implying precision it does not have.
+
 ## Deep links
 
 Every view is addressable, so a specific finding can be sent to someone
@@ -185,7 +224,7 @@ Its `dt_code` values are the same district codes our Census loaders already
 use (Kolhapur `530`, Nashik `516`), so map and database join without a
 translation table.
 
-## Three things worth knowing before changing this
+## Six things worth knowing before changing this
 
 **1. Do not set `stroke-width` or `font-size` in CSS for map elements.**
 The whole map lives in one scaled `<g>`, so those values are divided by the
@@ -204,6 +243,28 @@ which renders district view as a field of giant overlapping blobs.
 the failure was invisible — the citizen's own report simply came back looking
 like every other row. Same failure mode as (1): a selector that silently
 matches nothing looks identical to a feature that was never wired up.
+
+**4. Set the map's height as an inline style, not only as the attribute.**
+The stylesheet says `#map { height: 100% }`, which outranks the `height`
+attribute. When the dock started reducing the map's drawing area, the element
+kept rendering at the full stage height while the viewBox claimed the shorter
+one, and the browser stretched the difference — putting all 780 marks
+thousands of pixels off-screen. Third instance of the same trap as (1) and
+(3): CSS quietly outranking what the JS thought it had set.
+
+**5. Reassign `cx`/`cy` on the merged selection, never only on enter.**
+`drawClusters`, `drawReports` and `drawLabels` set their coordinates once, at
+enter. That was survivable while the projection never changed after boot. The
+dock refits the projection every time it opens, so marks born under the old
+projection stayed where they were and the map came up empty. Any value derived
+from the projection belongs on `enter.merge(sel)`.
+
+**6. Cluster zoom must be absolute, not `view.k * 3.2`.**
+Scaling the *current* view is not idempotent, and navigating to the cluster
+that is already open is routine — a resize does it, and so does opening the
+dock. Twice through gave scale 196. It is now derived from the district's own
+`fitTransform`, so it can be recomputed any number of times and land in the
+same place.
 
 ## Honest scope
 

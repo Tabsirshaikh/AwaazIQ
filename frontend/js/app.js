@@ -80,7 +80,9 @@
 
   /** Transform for a point (used when diving into a single cluster).
    *  `rightInset` is the width of any panel covering the right edge, so the
-   *  point is centred in what the user can actually see. */
+   *  point is centred in what the user can actually see. Unused since the
+   *  detail moved from a right sidebar to a dock beneath the map, but kept
+   *  because a right-hand overlay is a plausible thing to add back. */
   function pointTransform(lon, lat, k, rightInset = 0) {
     const [px, py] = projection([lon, lat]);
     return {
@@ -89,8 +91,6 @@
       y: height / 2 - k * py,
     };
   }
-
-  const PANEL_W = 392;
 
   /**
    * Animate #viewport to a target transform.
@@ -229,7 +229,127 @@
   }
 
   function closePanel() {
-    d3.select("#panel").classed("panel--open", false);
+    const dock = d3.select("#dock");
+    if (!dock.classed("dock--open")) return;
+    dock.classed("dock--open", false);
+    // Give the map its space back. Waits out the slide-down so the height
+    // read in sizeToStage is the settled one, not a mid-transition value.
+    setTimeout(refit, 440);
+  }
+
+  /* ------------------------------------------------------------ evidence -- */
+
+  // Which evidence block belongs to which score term. Two of them are named
+  // differently on each side: the equity term is computed from reporting
+  // capacity, and the strategic term from scheme eligibility.
+  const EVIDENCE_KEY = {
+    demand: "demand",
+    population: "population",
+    infra_deficit: "infra_deficit",
+    vulnerability: "vulnerability",
+    equity: "reporting_capacity",
+    strategic: "scheme_eligibility",
+    feasibility: "feasibility",
+  };
+
+  // Readable labels and units for the fields that carry the most weight in an
+  // argument. Anything not listed falls back to the generic prettifier, so
+  // adding a field to the engine never leaves a blank row here.
+  const EV_LABELS = {
+    distinct_reporters: ["Distinct reporters", ""],
+    total_reports: ["Reports filed", ""],
+    saturates_at: ["Counting stops at", " reporters"],
+    settlements: ["Settlements", ""],
+    people_affected: ["People affected", ""],
+    catchment_radius_km: ["Catchment radius", " km"],
+    villages_in_catchment: ["Villages counted", ""],
+    iphs_subcentre_entitled: ["Sub-centres this population is entitled to", ""],
+    iphs_phc_entitled: ["PHCs entitled to", ""],
+    share_with_facility_over_5km: ["Villages >5 km from a facility", "%"],
+    share_without_all_weather_road: ["Villages with no all-weather road", "%"],
+    share_without_black_topped_road: ["Villages with no black-topped road", "%"],
+    undelivered_sanctioned_works: ["Sanctioned works not delivered", ""],
+    undelivered_sanctioned_cost_lakh: ["Money already sanctioned, unspent", " lakh"],
+    oldest_undelivered_sanction_year: ["Oldest undelivered sanction", ""],
+    villages_with_records: ["Villages with records", ""],
+    jjm_tap_coverage_pct: ["Households with a tap (JJM)", "%"],
+    jjm_villages_measured: ["Villages measured", ""],
+    share_without_treated_tap: ["Villages without a treated tap", "%"],
+    mean_km_to_district_hq: ["Average distance to district HQ", " km"],
+    mean_km_to_subdistrict_hq: ["Distance to sub-district HQ", " km"],
+    mean_power_hours_summer: ["Power, summer", " hrs/day"],
+    share_without_drainage: ["Villages with no drainage", "%"],
+    share_without_internet_csc: ["Villages with no internet centre", "%"],
+    bharatnet_villages_checked: ["Gram panchayats checked", ""],
+    bharatnet_villages_impaired: ["…with fibre down or absent", ""],
+    share_digitally_impaired: ["Cannot report online", "%"],
+    entitled: ["Entitled to", ""],
+    existing: ["Actually exists", ""],
+    villages_short: ["Villages falling short", ""],
+    villages_below_full_coverage: ["Villages below full coverage", ""],
+    lowest_coverage_pct: ["Worst village coverage", "%"],
+    median_cost_lakh_per_km: ["Median cost of comparable work", " lakh/km"],
+    works_sampled: ["Works averaged", ""],
+    dimensions_used: ["Deprivation measures used", ""],
+  };
+
+  // Fields that are text or explanatory rather than measurements.
+  const EV_TEXT = new Set(["scheme", "rule", "source", "measures"]);
+
+  // Years are numbers that must not be thousands-separated: a sanction from
+  // 2006 is not "2,006".
+  const EV_RAW_NUMBER = new Set(["oldest_undelivered_sanction_year"]);
+
+  function prettyKey(key) {
+    return key.replace(/_/g, " ").replace(/^./, (m) => m.toUpperCase());
+  }
+
+  function renderEvidence(target, block) {
+    if (!block || !Object.keys(block).length) {
+      target.append("div").attr("class", "ev__none")
+        .text("No separate record behind this term — it follows from the " +
+              "category and the population already shown.");
+      return;
+    }
+
+    Object.entries(block).forEach(([key, value]) => {
+      if (value === null || value === undefined) return;
+
+      // Lists of names read better as a sentence than as a table row.
+      if (Array.isArray(value)) {
+        if (!value.length) return;
+        const text = value
+          .map((v) => (v && typeof v === "object"
+            ? `${v.name} (${fmt(v.population || 0)})` : String(v)))
+          .join(", ");
+        const r = target.append("div").attr("class", "ev");
+        r.append("span").attr("class", "ev__k")
+          .text((EV_LABELS[key] || [prettyKey(key)])[0]);
+        r.append("span").attr("class", "ev__v").text(text);
+        return;
+      }
+
+      const [label, unit] = EV_LABELS[key] || [prettyKey(key), ""];
+      let shown;
+      if (EV_TEXT.has(key)) {
+        shown = String(value);
+      } else if (EV_RAW_NUMBER.has(key)) {
+        shown = String(value);
+      } else if (typeof value === "number") {
+        // Shares arrive as 0-1 and read as percentages; everything else is a
+        // count, a distance or an amount of money.
+        shown = unit === "%"
+          ? `${(value * 100).toFixed(1)}%`
+          : `${fmt(Number(value.toFixed(2)))}${unit}`;
+        if (unit.includes("lakh")) shown = `₹${shown}`;
+      } else {
+        shown = String(value);
+      }
+
+      const r = target.append("div").attr("class", "ev");
+      r.append("span").attr("class", "ev__k").text(label);
+      r.append("span").attr("class", "ev__v").text(shown);
+    });
   }
 
   /**
@@ -278,38 +398,78 @@
     });
   }
 
-  function renderPanel(c) {
-    const panel = d3.select("#panel");
+  async function renderPanel(c) {
+    const dock = d3.select("#dock");
     const b = c.breakdown || {};
     const maxAbs = d3.max(TERMS, ([k]) => Math.abs(b[k] || 0)) || 1;
     const sum = TERMS.reduce((acc, [k]) => acc + (b[k] || 0), 0);
     const runner = clusters.find((x) => x.id === c.runner_up_cluster_id);
 
-    panel.html("");
+    dock.html("");
 
     /* -- head -- */
-    const head = panel.append("div").attr("class", "panel__head");
+    const head = dock.append("div").attr("class", "dock__head");
+    head.append("span").attr("class", "dock__cat").text(c.issue_category || "—");
+    const titles = head.append("div");
+    titles.append("div").attr("class", "dock__title")
+      .text(c.block || c.district || `Cluster ${c.id}`);
+    titles.append("div").attr("class", "dock__sub")
+      .text(`${c.district} district · cluster ${c.id}`);
+    head.append("div").attr("class", "dock__spacer");
+    head.append("div").attr("class", "dock__score")
+      .text((c.priority_score ?? 0).toFixed(2));
+    head.append("div").attr("class", "dock__scoreof").text("/ 100");
+    head.append("div").attr("class", "dock__rank")
+      .text(`RANK #${rankOf(c)} OF ${clusters.length}`);
     head.append("button")
-      .attr("class", "panel__close")
+      .attr("class", "dock__close")
       .attr("aria-label", "Close detail")
       .html("&times;")
       .on("click", () => navigate("district", { state: nav.state, district: nav.district }));
-    head.append("span").attr("class", "panel__cat").text(c.issue_category || "—");
-    head.append("div").attr("class", "panel__title").text(c.block || c.district || `Cluster ${c.id}`);
-    head.append("div").attr("class", "panel__sub")
-      .text(`${c.district} district · cluster ${c.id}`);
 
-    const row = head.append("div").attr("class", "panel__scorerow");
-    row.append("div").attr("class", "panel__score")
-      .text((c.priority_score ?? 0).toFixed(2));
-    row.append("div").attr("class", "panel__scoreof").text("/ 100");
-    row.append("div").attr("class", "panel__rank").text(`RANK #${rankOf(c)} OF ${clusters.length}`);
+    const cols = dock.append("div").attr("class", "dock__cols");
 
-    /* -- body -- */
-    const body = panel.append("div").attr("class", "panel__body");
+    /* -- column 1: the nine terms, each opening onto its evidence -- */
+    const sec = cols.append("div").attr("class", "dock__col");
+    sec.append("div").attr("class", "eyebrow").text("Why this score");
+    sec.append("div").attr("class", "dock__hint")
+      .text("Nine independently-sourced terms, summing to the score exactly. " +
+            "Click any term to see the record it was computed from.");
 
-    const facts = body.append("div").attr("class", "panel__section")
-      .append("div").attr("class", "facts");
+    const evTargets = {};
+    TERMS.forEach(([key, label, source]) => {
+      const val = b[key] ?? 0;
+      const t = sec.append("div").attr("class", "term");
+      const r = t.append("div").attr("class", "term__row");
+      r.append("span").attr("class", "term__name").text(label);
+      r.append("span").attr("class", "term__caret").text("▸");
+      r.append("span")
+        .attr("class", `term__val${val < 0 ? " term__val--neg" : ""}`)
+        .text(`${val > 0 ? "+" : ""}${val.toFixed(2)}`);
+      const bar = t.append("div").attr("class", "term__track")
+        .append("div")
+        .attr("class", `term__bar${val < 0 ? " term__bar--neg" : val === 0 ? " term__bar--zero" : ""}`);
+      requestAnimationFrame(() => {
+        bar.style("width", `${Math.max(Math.abs(val) / maxAbs * 100, val === 0 ? 2 : 4)}%`);
+      });
+      t.append("div").attr("class", "term__src").text(source);
+      evTargets[key] = t.append("div").attr("class", "term__ev")
+        .text("Loading the record…");
+
+      r.on("click", () => {
+        const open = !t.classed("term--open");
+        t.classed("term--open", open);
+        r.select(".term__caret").text(open ? "▾" : "▸");
+      });
+    });
+
+    const sl = sec.append("div").attr("class", "sumline");
+    sl.append("span").attr("class", "sumline__l").text("Sum of all nine terms");
+    sl.append("span").attr("class", "sumline__v").text(sum.toFixed(2));
+
+    /* -- column 2: which specific thing is broken -- */
+    const mid = cols.append("div").attr("class", "dock__col");
+    const facts = mid.append("div").attr("class", "facts");
     [
       [fmt(c.report_count ?? 0), "citizen reports"],
       [fmt(c.unique_reporters ?? 0), "distinct reporters"],
@@ -321,41 +481,20 @@
       f.append("div").attr("class", "fact__l").text(l);
     });
 
-    /* -- the nine terms -- */
-    const sec = body.append("div").attr("class", "panel__section");
-    sec.append("div").attr("class", "eyebrow panel__sectionhead").text("Why this score");
-    sec.append("div").attr("class", "panel__hint")
-      .text("Nine independently-sourced terms. They sum to the score exactly — " +
-            "nothing is hidden in a model.");
+    mid.append("div").attr("class", "eyebrow").style("margin-top", "16px")
+      .text("Which specific thing is broken");
+    mid.append("div").attr("class", "dock__hint")
+      .text("The cluster decides where the money goes. These are the places " +
+            "inside it a crew would actually be sent.");
+    const wgBody = mid.append("div").text("Loading work groups…")
+      .style("font-size", "11.5px").style("color", "var(--muted)");
 
-    TERMS.forEach(([key, label, source]) => {
-      const val = b[key] ?? 0;
-      const t = sec.append("div").attr("class", "term");
-      const r = t.append("div").attr("class", "term__row");
-      r.append("span").attr("class", "term__name").text(label);
-      r.append("span")
-        .attr("class", `term__val${val < 0 ? " term__val--neg" : ""}`)
-        .text(`${val > 0 ? "+" : ""}${val.toFixed(2)}`);
-      const bar = t.append("div").attr("class", "term__track")
-        .append("div")
-        .attr("class", `term__bar${val < 0 ? " term__bar--neg" : val === 0 ? " term__bar--zero" : ""}`);
-      // Width animates from 0 on the next frame so the panel "fills in".
-      requestAnimationFrame(() => {
-        bar.style("width", `${Math.max(Math.abs(val) / maxAbs * 100, val === 0 ? 2 : 4)}%`);
-      });
-      t.append("div").attr("class", "term__src").text(source);
-    });
-
-    const sl = sec.append("div").attr("class", "sumline");
-    sl.append("span").attr("class", "sumline__l").text("Sum of all nine terms");
-    sl.append("span").attr("class", "sumline__v").text(sum.toFixed(2));
-
-    /* -- the reports that make up this cluster -- */
-    const reps = body.append("div").attr("class", "panel__section");
-    reps.append("div").attr("class", "eyebrow panel__sectionhead").text("Who reported this");
-    reps.append("div").attr("class", "panel__hint")
-      .text("The individual citizen reports that were corroborated into this cluster.");
-    const repsBody = reps.append("div").text("Loading reports…")
+    /* -- column 3: the reports, then the counterfactual -- */
+    const right = cols.append("div").attr("class", "dock__col");
+    right.append("div").attr("class", "eyebrow").text("Who reported this");
+    right.append("div").attr("class", "dock__hint")
+      .text("The individual citizen reports corroborated into this cluster.");
+    const repsBody = right.append("div").text("Loading reports…")
       .style("font-size", "11.5px").style("color", "var(--muted)");
 
     // ?mine=<report id> is how the intake screen hands the citizen back to
@@ -364,11 +503,22 @@
     const mineId = Number(params.get("mine"));
     loadClusterReports(c.id, repsBody, Number.isFinite(mineId) && mineId > 0 ? mineId : null);
 
+    // Only on the closed -> open transition. refit() re-navigates, navigate()
+    // re-renders this dock, and an unconditional refit here would schedule
+    // another one every 440ms forever -- rebuilding the DOM under the user
+    // and silently discarding any term they had expanded.
+    const wasOpen = dock.classed("dock--open");
+    dock.classed("dock--open", true);
+    if (!wasOpen) setTimeout(refit, 440);
+
+    /* -- the evidence and work groups need the detail endpoint -- */
+    loadClusterDetail(c.id, evTargets, wgBody);
+
     /* -- counterfactual -- */
     if (runner) {
-      const rs = body.append("div").attr("class", "panel__section");
-      rs.append("div").attr("class", "eyebrow panel__sectionhead").text("Why not the runner-up");
-      rs.append("div").attr("class", "panel__hint")
+      const rs = right.append("div").style("margin-top", "18px");
+      rs.append("div").attr("class", "eyebrow").text("Why not the runner-up");
+      rs.append("div").attr("class", "dock__hint")
         .text("The next cluster down, and exactly which terms separate them.");
 
       const card = rs.append("div").attr("class", "runnerup");
@@ -411,8 +561,77 @@
           }
         });
     }
+  }
 
-    panel.classed("panel--open", true);
+  /**
+   * Fetch the working behind the score and the work groups.
+   *
+   * A second request on purpose. /clusters carries what the rail and the map
+   * need for all 114 at once; the evidence is far larger and is only ever
+   * read for the one cluster someone opened, so shipping it with the list
+   * would make every page load pay for detail nobody asked for.
+   */
+  async function loadClusterDetail(clusterId, evTargets, wgBody) {
+    let detail;
+    try {
+      detail = await d3.json(`${API}/clusters/${clusterId}`);
+    } catch {
+      Object.values(evTargets).forEach((t) =>
+        t.text("Couldn't load the record behind this term."));
+      wgBody.text("Couldn't load the work groups.");
+      return;
+    }
+
+    const evidence = detail.evidence || {};
+    Object.entries(evTargets).forEach(([term, target]) => {
+      target.html("");
+      renderEvidence(target, evidence[EVIDENCE_KEY[term]]);
+      // The cost benchmark answers "and what would it cost?", which is the
+      // question that follows "a scheme exists" -- so it rides along with
+      // the scheme term rather than sitting in a corner of its own.
+      if (term === "strategic" && evidence.cost_benchmark &&
+          Object.keys(evidence.cost_benchmark).length) {
+        target.append("div").attr("class", "ev__none").style("margin-top", "6px")
+          .style("font-style", "normal").text("What comparable work has cost:");
+        renderEvidence(target, evidence.cost_benchmark);
+      }
+    });
+
+    const groups = detail.work_groups || [];
+    wgBody.html("");
+    if (!groups.length) {
+      wgBody.append("div").attr("class", "ev__none")
+        .text("No work groups — every report in this cluster lacks coordinates.");
+      return;
+    }
+
+    groups.forEach((g) => {
+      const card = wgBody.append("div").attr("class", "wg")
+        .on("click", () => flyToWorkGroup(g));
+      const top = card.append("div").attr("class", "wg__top");
+      top.append("span").attr("class", "wg__name").text(g.label);
+      top.append("span").attr("class", "wg__spread")
+        .text(g.spread_m > 0 ? `${Math.round(g.spread_m)} m across` : "single point");
+      top.append("span").attr("class", "wg__count")
+        .text(`${g.report_count} report${g.report_count === 1 ? "" : "s"}`);
+      card.append("div").attr("class", "wg__text").text(g.sample_text || "");
+    });
+
+    wgBody.append("div").attr("class", "ev__none").style("margin-top", "9px")
+      .text(groups.every((g) => g.spread_m === 0)
+        ? "Every report here carries only its village's location, so a group " +
+          "is a village. Reports filed with a GPS pin separate further, down " +
+          "to the individual road."
+        : "Grouped by proximity: reports within 250 m are treated as the same " +
+          "broken thing.");
+  }
+
+  /** Centre the map on one work group so the officer sees where it is. */
+  function flyToWorkGroup(group) {
+    if (group.lat == null || group.lon == null) return;
+    const [x, y] = projection([group.lon, group.lat]);
+    animateTo({ k: Math.max(view.k, 40), x: width / 2 - x * Math.max(view.k, 40),
+                y: height / 2 - y * Math.max(view.k, 40) });
   }
 
   /** Clusters in scope for the current level. */
@@ -500,7 +719,15 @@
       })
       .on("mouseleave", hideTip);
 
+    // cx/cy are reassigned on the MERGED selection, not only on enter. The
+    // projection is refitted whenever the drawing area changes size -- which
+    // now happens every time the detail dock opens -- and a circle that keeps
+    // the coordinates it was born with is then drawn for a projection that no
+    // longer exists. At cluster zoom that put every mark tens of thousands of
+    // pixels outside the viewBox, i.e. an empty map.
     enter.merge(sel)
+      .attr("cx", (d) => projection([d.centroid_lon, d.centroid_lat])[0])
+      .attr("cy", (d) => projection([d.centroid_lon, d.centroid_lat])[1])
       .transition().duration(520).ease(d3.easeCubicOut)
       .attr("r", (d) => radiusScale(d.population_affected || 0) / view.k)
       .attr("fill", (d) => scoreColour(d.priority_score));
@@ -510,26 +737,30 @@
 
   function drawReports(list) {
     const sel = gReports.selectAll("circle").data(list, (d, i) => i);
-    sel.enter().append("circle")
+    const enter = sel.enter().append("circle")
       .attr("class", "report")
-      .attr("cx", (d) => projection(d.geometry.coordinates)[0])
-      .attr("cy", (d) => projection(d.geometry.coordinates)[1])
-      .attr("r", 0)
-      .transition().delay((d, i) => Math.min(i * 1.2, 500)).duration(320)
+      .attr("r", 0);
+    enter.transition().delay((d, i) => Math.min(i * 1.2, 500)).duration(320)
       .attr("r", 1.9 / view.k);
+    // Repositioned on every draw, for the same reason as drawClusters.
+    enter.merge(sel)
+      .attr("cx", (d) => projection(d.geometry.coordinates)[0])
+      .attr("cy", (d) => projection(d.geometry.coordinates)[1]);
     sel.exit().remove();
   }
 
   function drawLabels(feats, key) {
     const sel = gLabels.selectAll("text").data(feats, (d) => d.properties[key]);
-    sel.enter().append("text")
+    const enter = sel.enter().append("text")
       .attr("class", "label")
       .attr("text-anchor", "middle")
-      .attr("x", (d) => path.centroid(d)[0])
-      .attr("y", (d) => path.centroid(d)[1])
       .text((d) => d.properties[key])
-      .attr("opacity", 0)
-      .transition().duration(400).attr("opacity", 1);
+      .attr("opacity", 0);
+    enter.transition().duration(400).attr("opacity", 1);
+    // Repositioned on every draw, for the same reason as drawClusters.
+    enter.merge(sel)
+      .attr("x", (d) => path.centroid(d)[0])
+      .attr("y", (d) => path.centroid(d)[1]);
     sel.exit().remove();
   }
 
@@ -597,7 +828,21 @@
     if (level === "cluster") {
       Object.assign(nav, { level, cluster: opts.cluster });
       const c = opts.cluster;
-      view = pointTransform(c.centroid_lon, c.centroid_lat, view.k * 3.2, PANEL_W);
+      // Zoom is derived from the district's own fit, NOT from view.k. Scaling
+      // the current view by 3.2 is not idempotent: navigating to the cluster
+      // that is already open -- which is exactly what a resize or the dock
+      // opening does -- multiplied the zoom again, reaching scale 196 and
+      // throwing all 780 marks off-screen. An absolute target can be
+      // recomputed any number of times and lands in the same place.
+      //
+      // No right inset any more either: the detail dock sits under the map
+      // rather than beside it, and sizeToStage has already taken its height
+      // out of `height`, so centring in the full width is correct.
+      const districtFeat = districtsFC.features.find(
+        (d) => d.properties.st_nm === nav.state &&
+               d.properties.district === nav.district);
+      const base = districtFeat ? fitTransform(districtFeat).k : view.k;
+      view = pointTransform(c.centroid_lon, c.centroid_lat, base * 3.2);
       drawClusters(clusters.filter((x) => x.district === nav.district));
       gClusters.selectAll("circle").classed("cluster--faded", (d) => d.id !== c.id);
       animateTo(view);
@@ -630,9 +875,37 @@
   function sizeToStage() {
     const r = stage.getBoundingClientRect();
     width = r.width;
-    height = r.height;
+    // The dock sits under the map rather than over it, so the map's drawing
+    // area is the stage minus whatever the dock occupies. Without this the
+    // cluster you just opened renders behind its own evidence.
+    const dock = document.getElementById("dock");
+    const docked = dock && dock.classList.contains("dock--open")
+      ? dock.getBoundingClientRect().height : 0;
+    height = Math.max(160, r.height - docked);
+    // The height must be set as an INLINE STYLE, not only as the attribute.
+    // The stylesheet says `#map { height: 100% }`, which outranks the height
+    // attribute -- so the element kept rendering at the full stage height
+    // while the viewBox claimed the shorter one, and the browser stretched
+    // the difference. Every mark was then drawn from a transform computed
+    // against a height the element did not have, putting all 780 of them
+    // thousands of pixels off-screen. Same trap as the stroke-width note in
+    // the stylesheet: an attribute a CSS rule quietly overrules.
     svg.attr("width", width).attr("height", height)
+       .style("height", `${height}px`)
        .attr("viewBox", `0 0 ${width} ${height}`);
+  }
+
+  /** Re-project and redraw for the current stage size. */
+  function refit() {
+    if (!india) return;
+    sizeToStage();
+    projection.fitExtent([[20, 20], [width - 20, height - 20]], india.statesMerged);
+    gStates.selectAll("path").attr("d", path);
+    gDistricts.selectAll("path").attr("d", path);
+    gOutline.selectAll("path").attr("d", path);
+    navigate(nav.level, {
+      state: nav.state, district: nav.district, cluster: nav.cluster,
+    });
   }
 
   async function boot() {
@@ -726,14 +999,7 @@
   window.addEventListener("resize", () => {
     if (!india) return;
     clearTimeout(resizeTimer);
-    resizeTimer = setTimeout(() => {
-      sizeToStage();
-      projection.fitExtent([[20, 20], [width - 20, height - 20]], india.statesMerged);
-      gStates.selectAll("path").attr("d", path);
-      gDistricts.selectAll("path").attr("d", path);
-      gOutline.selectAll("path").attr("d", path);
-      navigate(nav.level, { state: nav.state, district: nav.district, cluster: nav.cluster });
-    }, 180);
+    resizeTimer = setTimeout(refit, 180);
   });
 
   /* --------------------------------------------------------------- api ---- */

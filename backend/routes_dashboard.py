@@ -10,7 +10,13 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from database import get_db
-from models import CitizenRequest, DemandCluster, PriorityScore, ReportAttachment
+from models import (
+    CitizenRequest,
+    DemandCluster,
+    PriorityScore,
+    ReportAttachment,
+    WorkGroup,
+)
 from routes_citizen_report import serialize_citizen_request
 
 router = APIRouter()
@@ -102,6 +108,38 @@ def get_cluster(cluster_id: int, db: Session = Depends(get_db)):
     detail["priority_breakdown"] = breakdown
     detail["runner_up_cluster_id"] = score.runner_up_cluster_id if score else None
     detail["computed_at"] = score.computed_at if score else None
+
+    # The working behind each term. Without this the panel can show that
+    # "scheme eligibility = +4" but not which scheme, under which rule, or by
+    # how much this place falls short of it.
+    evidence = None
+    if score and score.evidence:
+        try:
+            evidence = json.loads(score.evidence)
+        except (TypeError, ValueError):
+            evidence = None
+    detail["evidence"] = evidence
+
+    # The specific things inside this cluster that are broken, so a crew can
+    # be sent somewhere rather than to a district-wide average.
+    detail["work_groups"] = [
+        {
+            "id": w.id,
+            "label": w.label,
+            "village": w.village,
+            "block": w.block,
+            "lat": w.centroid_lat,
+            "lon": w.centroid_lon,
+            "report_count": w.report_count,
+            "distinct_reporters": w.distinct_reporters,
+            "spread_m": w.spread_m,
+            "sample_text": w.sample_text,
+        }
+        for w in db.query(WorkGroup)
+        .filter(WorkGroup.cluster_id == cluster_id)
+        .order_by(WorkGroup.report_count.desc(), WorkGroup.id)
+        .all()
+    ]
     return detail
 
 

@@ -141,11 +141,51 @@ def load_works_index(db) -> list[dict]:
                 "status": work.work_status,
                 "year": work.sanctioned_year,
                 "cost_lakh": work.sanctioned_cost_lakh,
+                "length_km": work.length_km,
                 "scheme": work.scheme_name,
                 "name": work.work_name,
             }
         )
     return works
+
+
+def cost_benchmark(category: str | None, works: list[dict]) -> dict:
+    """
+    What this kind of work has actually cost the government here.
+
+    "A scheme exists" is only half an answer for someone holding a budget --
+    the next question is always how much. Rather than quoting a national
+    outlay we do not hold, this reports the median sanctioned cost per
+    kilometre from the PMGSY works already in this database, and says how many
+    works it was computed from so a reader can judge how much to trust it.
+
+    Roads only: PMGSY is the one scheme whose per-unit costs we actually have.
+    Returning an empty dict for the other sectors is the honest answer, and
+    the panel renders nothing rather than inventing a figure.
+    """
+    if category != "road":
+        return {}
+
+    priced = [
+        w for w in works
+        if (w.get("cost_lakh") or 0) > 0 and (w.get("length_km") or 0) > 0
+    ]
+    if len(priced) < 5:
+        return {}
+
+    per_km = sorted(w["cost_lakh"] / w["length_km"] for w in priced)
+    middle = len(per_km) // 2
+    median = (
+        per_km[middle]
+        if len(per_km) % 2
+        else (per_km[middle - 1] + per_km[middle]) / 2
+    )
+    return {
+        "scheme": "PMGSY",
+        "median_cost_lakh_per_km": round(median, 2),
+        "works_sampled": len(priced),
+        "source": "sanctioned costs of PMGSY works in this database",
+    }
 
 
 def villages_near(lat: float, lon: float, index: list[dict], radius_km: float | None = None):

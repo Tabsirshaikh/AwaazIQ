@@ -314,5 +314,48 @@ class PriorityScore(Base):
     cluster_id = Column(Integer, ForeignKey("demand_cluster.id"))
     priority_score = Column(Float)
     breakdown = Column(Text)
+    # The working behind each term, as JSON: which scheme and which rule, how
+    # many people and in which villages, which sanctioned works are still
+    # undelivered and for how much money. recompute.py already computed all of
+    # this to produce the numbers and then dropped it on the floor, so a score
+    # could be read but never checked. A number an official cannot interrogate
+    # is a number they are right not to trust.
+    evidence = Column(Text)
     runner_up_cluster_id = Column(Integer, nullable=True)
     computed_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+
+class WorkGroup(Base):
+    """
+    A unit of work inside a demand cluster: the specific place a crew is sent.
+
+    The cluster stays the funding unit -- it is what carries a priority score
+    and what a district compares against other clusters. But "road problem in
+    Pimpalgaon Basvant, 19 reports" does not tell PWD which road, and the
+    priority engine was never meant to answer that.
+
+    A work group is the answer: reports inside one cluster that sit close
+    enough together to be the same broken thing. Today, reports carry their
+    village's centroid, so a work group resolves to a village -- already
+    useful, since a cluster routinely spans several. Once reports carry a GPS
+    pin from the intake form, the same grouping separates two roads inside one
+    village without any change here.
+
+    Rebuilt from scratch on every recompute, exactly like clusters.
+    """
+
+    __tablename__ = "work_group"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    cluster_id = Column(Integer, ForeignKey("demand_cluster.id"), index=True)
+
+    label = Column(Text)               # village, or the landmark people named
+    centroid_lat = Column(Float)
+    centroid_lon = Column(Float)
+    report_count = Column(Integer)
+    distinct_reporters = Column(Integer)
+    spread_m = Column(Float)           # how far apart its reports actually are
+    village = Column(Text)
+    block = Column(Text)
+    sample_text = Column(Text)         # one real complaint, for the officer
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
