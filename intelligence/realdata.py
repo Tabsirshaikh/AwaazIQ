@@ -144,6 +144,7 @@ def load_works_index(db) -> list[dict]:
                 "length_km": work.length_km,
                 "scheme": work.scheme_name,
                 "name": work.work_name,
+                "external_id": work.external_id,
             }
         )
     return works
@@ -605,3 +606,122 @@ def real_hq_distance_km(villages: list[dict]) -> tuple[float | None, dict]:
         "mean_km_to_subdistrict_hq": round(mean_distance, 1),
         "source": "census_recorded_distance",
     }
+
+
+# ---------------------------------------------------------------------------
+# Naming the actual asset behind a work group
+# ---------------------------------------------------------------------------
+
+# How far from a work group a facility can be and still be a candidate for
+# what the reports are about. Reports carry village centroids, so this is
+# village scale, not street scale.
+ASSET_CANDIDATE_RADIUS_M = 2000.0
+
+# Ranked shortlist length. Beyond a handful, a list stops helping anyone
+# decide and starts reading as noise.
+ASSET_MAX_CANDIDATES = 6
+
+
+def load_facility_index(db, category: str | None = None) -> list[dict]:
+    """Named public assets with coordinates, for naming work groups."""
+    from models import PublicFacility  # noqa: E402
+
+    query = db.query(PublicFacility).filter(
+        PublicFacility.latitude.isnot(None),
+        PublicFacility.longitude.isnot(None),
+    )
+    if category:
+        query = query.filter(PublicFacility.category == category)
+
+    return [
+        {
+            "name": f.name,
+            "external_id": f.external_id,
+            "source": f.source,
+            "category": f.category,
+            "sub_type": f.sub_type,
+            "management": f.management,
+            "village": f.village,
+            "lat": f.latitude,
+            "lon": f.longitude,
+        }
+        for f in query.all()
+    ]
+
+
+def name_work_group(
+    lat: float,
+    lon: float,
+    category: str | None,
+    facilities: list[dict],
+    works_by_village: dict[str, list[dict]] | None = None,
+    village: str | None = None,
+) -> dict:
+    """
+    Work out which real, named asset a work group is about.
+
+    Returns {label, source, external_id, candidates}. `label` is filled in
+    ONLY when the answer is unambiguous -- one candidate in range. This is the
+    honest line: a village with 29 schools cannot be resolved to one of them
+    by measuring from its centroid, and asserting the nearest would be
+    inventing a fact that an officer would then act on. In that case the
+    shortlist is returned and a person chooses.
+
+    Roads are resolved differently and better: PMGSY works carry real endpoint
+    names already matched to a village, so a road complaint in a village with
+    one sanctioned work names that work outright, no distance guessing.
+    """
+    result: dict = {
+        "label": None,
+        "source": None,
+        "external_id": None,
+        "candidates": [],
+    }
+
+    if category == "road":
+        works = (works_by_village or {}).get(village or "", [])
+        result["candidates"] = [
+            {
+                "name": w["name"],
+                "external_id": w.get("external_id"),
+                "detail": " · ".join(
+                    part for part in (
+                        w.get("status"),
+                        f"Rs {w['cost_lakh']:,.2f} lakh" if w.get("cost_lakh") else None,
+                        f"sanctioned {w['year']}" if w.get("year") else None,
+                    ) if part
+                ),
+                "distance_m": None,
+            }
+            for w in works[:ASSET_MAX_CANDIDATES]
+        ]
+        if len(works) == 1:
+            result["label"] = works[0]["name"]
+            result["source"] = "pmgsy"
+            result["external_id"] = works[0].get("external_id")
+        return result
+
+    near = []
+    for facility in facilities:
+        distance = haversine_km(lat, lon, facility["lat"], facility["lon"]) * 1000.0
+        if distance <= ASSET_CANDIDATE_RADIUS_M:
+            near.append((distance, facility))
+    near.sort(key=lambda pair: pair[0])
+
+    result["candidates"] = [
+        {
+            "name": f["name"],
+            "external_id": f["external_id"],
+            "detail": " · ".join(p for p in (f.get("sub_type"), f.get("management")) if p),
+            "distance_m": round(d),
+        }
+        for d, f in near[:ASSET_MAX_CANDIDATES]
+    ]
+
+    if len(near) == 1:
+        distance, facility = near[0]
+        result["label"] = facility["name"]
+        result["source"] = facility["source"]
+        result["external_id"] = facility["external_id"]
+
+    return result

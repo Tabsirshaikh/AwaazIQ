@@ -262,6 +262,29 @@ def recompute(db, verbose: bool = True) -> dict:
     # back to its proxy -- the engine degrades rather than failing.
     amenity_index = realdata.load_amenity_index(db)
     works_index = realdata.load_works_index(db)
+
+    # Named public assets, so a work group can say "Z.P.SCHOOL DABHADI"
+    # instead of "Dabhadi". Empty until load_udise_schools.py has been run,
+    # in which case groups keep their village label and say so.
+    facility_index = realdata.load_facility_index(db)
+    facilities_by_category: dict[str, list[dict]] = {}
+    for facility in facility_index:
+        facilities_by_category.setdefault(facility["category"], []).append(facility)
+
+    # PMGSY works keyed by the village name they were matched to, so a road
+    # group can name the actual sanctioned work rather than measure distances
+    # to a road that has no point geometry.
+    village_name_by_id = {v["gazetteer_id"]: v["name"] for v in amenity_index}
+    works_by_village: dict[str, list[dict]] = {}
+    for work in works_index:
+        name = village_name_by_id.get(work["gazetteer_id"])
+        if name:
+            works_by_village.setdefault(name, []).append(work)
+
+    log(
+        f"named assets: {len(facility_index)} facilities, "
+        f"{len(works_by_village)} villages with a sanctioned road work"
+    )
     with_records = sum(1 for v in amenity_index if v.get("has_real_data"))
     log(
         f"real data: {with_records}/{len(amenity_index)} villages with government "
@@ -323,10 +346,28 @@ def recompute(db, verbose: bool = True) -> dict:
                 {CitizenRequest.cluster_id: cluster.id}, synchronize_session=False
             )
 
-        # Which specific things inside this cluster are broken.
+        # Which specific things inside this cluster are broken, and -- where
+        # the registers can establish it -- what each one is actually called.
         groups = _work_groups(members)
         for group in groups:
-            db.add(WorkGroup(cluster_id=cluster.id, **group))
+            named = realdata.name_work_group(
+                group["centroid_lat"],
+                group["centroid_lon"],
+                category,
+                facilities_by_category.get(category, []),
+                works_by_village=works_by_village,
+                village=group.get("village"),
+            )
+            db.add(
+                WorkGroup(
+                    cluster_id=cluster.id,
+                    asset_label=named["label"],
+                    asset_source=named["source"],
+                    asset_external_id=named["external_id"],
+                    asset_candidates=json.dumps(named["candidates"], default=str),
+                    **group,
+                )
+            )
 
         # --- what the government's own records say about this place --------
         nearby_villages = realdata.villages_near(centroid_lat, centroid_lon, amenity_index)

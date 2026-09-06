@@ -134,6 +134,13 @@ def get_cluster(cluster_id: int, db: Session = Depends(get_db)):
             "distinct_reporters": w.distinct_reporters,
             "spread_m": w.spread_m,
             "sample_text": w.sample_text,
+            # The real asset, where a register can establish it. asset_label
+            # is present only when unambiguous; otherwise the shortlist is
+            # all we can honestly offer and a person picks from it.
+            "asset_label": w.asset_label,
+            "asset_source": w.asset_source,
+            "asset_external_id": w.asset_external_id,
+            "asset_candidates": json.loads(w.asset_candidates or "[]"),
         }
         for w in db.query(WorkGroup)
         .filter(WorkGroup.cluster_id == cluster_id)

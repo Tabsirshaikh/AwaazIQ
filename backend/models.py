@@ -325,6 +325,44 @@ class PriorityScore(Base):
     computed_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 
+class PublicFacility(Base):
+    """
+    A named, located public asset: this school, that health centre.
+
+    The gap this fills: village_amenities records that a village HAS two
+    primary schools, never WHICH ones. So a cluster could say "education
+    problem in Dabhadi" and stop there, when the department needs a name to
+    put on a work order.
+
+    Deliberately generic rather than a `school` table. Health and water assets
+    belong here too as their registries are loaded, and the matching code
+    should not care which sector it is resolving.
+
+    Naming a facility from a report is a claim about the real world, so
+    `source` and `external_id` are mandatory in practice -- every row must be
+    traceable to the register it came from (a UDISE code, for schools).
+    """
+
+    __tablename__ = "public_facility"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+
+    source = Column(Text, index=True)        # "udise_2022", "pmgsy", ...
+    external_id = Column(Text, index=True)   # UDISE school code, work id
+    name = Column(Text)
+    category = Column(Text, index=True)      # matches DemandCluster.issue_category
+    sub_type = Column(Text)                  # "Primary with Upper Primary", ...
+    management = Column(Text)                # government / private / aided
+
+    village = Column(Text)
+    block = Column(Text)
+    district = Column(Text, index=True)
+    latitude = Column(Float)
+    longitude = Column(Float)
+
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+
 class WorkGroup(Base):
     """
     A unit of work inside a demand cluster: the specific place a crew is sent.
@@ -358,4 +396,16 @@ class WorkGroup(Base):
     village = Column(Text)
     block = Column(Text)
     sample_text = Column(Text)         # one real complaint, for the officer
+
+    # The named asset this group is about, where it can be established.
+    #
+    # asset_label is set ONLY when the answer is unambiguous -- exactly one
+    # candidate facility in range. Where a village holds 29 schools, the one
+    # nearest its centroid is not the one being complained about, and saying
+    # so would be inventing a fact. In that case asset_label stays null and
+    # asset_candidates carries the shortlist for a human to choose from.
+    asset_label = Column(Text)
+    asset_source = Column(Text)              # "udise", "pmgsy"
+    asset_external_id = Column(Text)         # UDISE code, PMGSY work id
+    asset_candidates = Column(Text)          # JSON: the ranked shortlist
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))

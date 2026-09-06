@@ -20,6 +20,14 @@ ADDED_COLUMNS: dict[str, dict[str, str]] = {
         # Line-department routing, added with the CPGRAMS-level intake form.
         "department": "TEXT",
     },
+    "work_group": {
+        # The named asset a work group is about, added with the UDISE school
+        # and PMGSY work registers.
+        "asset_label": "TEXT",
+        "asset_source": "TEXT",
+        "asset_external_id": "TEXT",
+        "asset_candidates": "TEXT",
+    },
     "priority_score": {
         # The working behind each score term, so a number can be interrogated
         # rather than only read.

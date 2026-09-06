@@ -892,3 +892,19 @@ html, body {
 /* The dock covers most of the page: at cluster level the map only needs to
    show where the cluster is, and the evidence below is what is being read. */
 .dock { height: 74%; }
+
+/* -------------------------------------------- named assets in work groups -- */
+
+.wg__asset {
+  margin-top: 7px; padding-top: 6px; border-top: 1px dashed var(--border);
+  font-family: var(--mono); font-size: 9.5px; color: var(--green);
+  letter-spacing: 0.02em;
+}
+.wg__cands { margin-top: 8px; padding-top: 7px; border-top: 1px dashed var(--border); }
+.wg__candhead {
+  font-family: var(--mono); font-size: 9px; letter-spacing: 0.07em;
+  text-transform: uppercase; color: var(--muted); margin-bottom: 5px;
+}
+.cand { display: flex; gap: 8px; align-items: baseline; padding: 2px 0; font-size: 11px; }
+.cand__n { color: var(--navy); flex: 1; min-width: 0; }
+.cand__d { font-family: var(--mono); font-size: 9.5px; color: var(--muted); white-space: nowrap; }

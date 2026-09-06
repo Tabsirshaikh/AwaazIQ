@@ -171,6 +171,27 @@ identical code separates two roads inside one village, with no change to the
 grouping. The panel says which of those two situations it is looking at
 rather than implying precision it does not have.
 
+### Naming the actual school, road or clinic
+
+A village is not an answer to "which one". Two registers now supply names:
+
+| Sector | Register | Coverage |
+|---|---|---|
+| Education | **UDISE+** school directory (DataMeet's GeoJSON mirror), 9,352 schools across Kolhapur and Nashik with official school codes and coordinates | 106 of 106 work groups get named candidates |
+| Road | **PMGSY** sanctioned works, already loaded, matched to a village by endpoint name | 13 of 108 groups name a real work |
+| Health, water | none loaded | falls back to the village, and says so |
+
+**A name is asserted only when it is unambiguous.** Where one facility is in
+range, the group is titled with it and credited to the register that supplied
+it. Where six schools sit within 2 km of a village centroid, the panel lists
+all six with their distances under "6 possible — the register cannot say
+which", because measuring from a village centroid genuinely cannot decide
+between them, and naming the nearest would be inventing a fact an officer
+would then act on.
+
+A GPS pin on the complaint collapses that shortlist to one. That is the
+single highest-value thing the intake form could add next.
+
 ## Deep links
 
 Every view is addressable, so a specific finding can be sent to someone

@@ -529,3 +529,50 @@ equivalent to data.gov.in resource `2e03171c-d6df-436d-b40c-38e0078b0c66` (needs
 
 *Every claim in this file was verified by direct download or live API call. Where something was
 not tested, it says so.*
+
+
+---
+
+## §7. Named facility registers (asset-level identity)
+
+Added to answer "which school / which road", which village-level amenity
+counts can never answer.
+
+### 7.1 Schools — UDISE+ via DataMeet · LOADED
+
+`https://github.com/datameet/udise_schools` — the Ministry of Education's
+UDISE+ school directory as GeoJSON, one file per district. Each feature
+carries `schcd` (the national school code), `schname`, `school_cat`,
+`management`, `vilname` and a point geometry.
+
+District file codes were **verified by fetching each 27xx file and reading
+its `dtname`**, not taken from a published code list:
+
+| District | UDISE file code | Pages | Schools loaded |
+|---|---|---|---|
+| Kolhapur | 2734 | 4 | 3,717 |
+| Nashik | 2720 | 6 | 5,635 |
+
+Loader: `backend/load_udise_schools.py` → `public_facility`.
+
+### 7.2 What was tried first and rejected
+
+| Source | Result |
+|---|---|
+| OpenStreetMap / Overpass | 2 schools within 6 km of Bidri. Rural POI coverage far too sparse to name an asset |
+| `kys.udiseplus.gov.in` | Single-page app, no documented public API; guessed endpoints 404 |
+| `data.gov.in` | Carries UDISE *aggregates* (enrolment by category, infrastructure counts), not the school directory |
+| `facility.abdm.gov.in` | Redirects; not resolved |
+
+### 7.3 Still missing: health and water facilities
+
+No register of individual health facilities or water schemes is loaded, so
+health and water work groups can still only be named by their village. The
+candidate leads, untested:
+
+* National Health Facility Registry (ABDM)
+* Ayushman Arogya Mandir / HWC facility lists
+* Rural Health Statistics facility-level annexures
+
+Until one lands, the panel says "no register of individual facilities exists
+for this sector yet" rather than guessing.

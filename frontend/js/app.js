@@ -595,24 +595,51 @@
     }
 
     groups.forEach((g) => {
+      const cands = g.asset_candidates || [];
       const card = wgBody.append("div").attr("class", "wg")
         .on("click", () => flyToWorkGroup(g));
+
       const top = card.append("div").attr("class", "wg__top");
-      top.append("span").attr("class", "wg__name").text(g.label);
-      top.append("span").attr("class", "wg__spread")
-        .text(g.spread_m > 0 ? `${Math.round(g.spread_m)} m across` : "single point");
+      // When a register settles it, the asset's own name is the heading and
+      // the village becomes the subtitle. Otherwise the village leads, because
+      // that is genuinely all that is established.
+      top.append("span").attr("class", "wg__name").text(g.asset_label || g.label);
+      if (g.asset_label) {
+        top.append("span").attr("class", "wg__spread").text(g.label);
+      }
       top.append("span").attr("class", "wg__count")
         .text(`${g.report_count} report${g.report_count === 1 ? "" : "s"}`);
+
       card.append("div").attr("class", "wg__text").text(g.sample_text || "");
+
+      if (g.asset_label) {
+        card.append("div").attr("class", "wg__asset")
+          .text(`Named from the ${g.asset_source === "pmgsy" ? "PMGSY works register" : "UDISE school register"}` +
+                (g.asset_external_id ? ` · ${g.asset_external_id}` : ""));
+      } else if (cands.length) {
+        // A shortlist, not an answer. Saying which of 16 schools a village's
+        // complaints are about is not something a village centroid can
+        // establish, and naming the nearest would be inventing a fact an
+        // officer would then act on.
+        const box = card.append("div").attr("class", "wg__cands");
+        box.append("div").attr("class", "wg__candhead")
+          .text(`${cands.length} possible — the register cannot say which:`);
+        cands.forEach((a) => {
+          const row = box.append("div").attr("class", "cand");
+          row.append("span").attr("class", "cand__n").text(a.name);
+          row.append("span").attr("class", "cand__d")
+            .text(a.distance_m != null ? `${a.distance_m} m` : (a.detail || ""));
+        });
+      }
     });
 
+    const anyNamed = groups.some((g) => g.asset_label || (g.asset_candidates || []).length);
     wgBody.append("div").attr("class", "ev__none").style("margin-top", "9px")
-      .text(groups.every((g) => g.spread_m === 0)
-        ? "Every report here carries only its village's location, so a group " +
-          "is a village. Reports filed with a GPS pin separate further, down " +
-          "to the individual road."
-        : "Grouped by proximity: reports within 250 m are treated as the same " +
-          "broken thing.");
+      .text(anyNamed
+        ? "Candidates come from the government's own registers. A GPS pin on " +
+          "the complaint would narrow them to one."
+        : "No register of individual facilities exists for this sector yet, so " +
+          "a group can only be named by its village.");
   }
 
   /** Centre the map on one work group so the officer sees where it is. */
