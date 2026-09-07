@@ -701,3 +701,49 @@ body.citizen { overflow: auto; height: auto; min-height: 100%; }
   letter-spacing: 0.05em; text-transform: uppercase;
 }
 .profile-readout__v { color: var(--navy); font-weight: 600; }
+
+/* ===========================================================================
+   Sign-in page
+
+   Replaces the in-page modal. The modal depended on styles that were not
+   always loaded, and when they were missing it rendered as raw markup down
+   the length of the page -- a failure mode with no visible cause, where a
+   citizen cannot tell whether the form is broken or they are. A page cannot
+   fail that way, and it also behaves the way an account screen should: its
+   own URL, a working back button, and visible to a password manager.
+   =========================================================================== */
+
+.wrap--narrow { max-width: 760px; }
+
+.authtabs {
+  display: flex; gap: 6px;
+  margin: 0 0 14px;
+  border-bottom: 1px solid var(--border);
+}
+.authtab {
+  appearance: none; border: none; background: none; cursor: pointer;
+  padding: 10px 16px; margin-bottom: -1px;
+  font-family: var(--mono); font-size: 10px; font-weight: 700;
+  letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--muted);
+  border-bottom: 2px solid transparent;
+  transition: color 160ms var(--ease), border-color 160ms var(--ease);
+}
+.authtab:hover { color: var(--navy); }
+.authtab.is-on { color: var(--navy); border-bottom-color: var(--amber); }
+
+.card__actions { margin-top: 16px; }
+
+/* A button that reads as a link, for switching halves without looking like a
+   second submit control competing with the real one. */
+.linklike {
+  appearance: none; border: none; background: none; padding: 0;
+  font: inherit; color: var(--amber); font-weight: 600;
+  text-decoration: underline; cursor: pointer;
+}
+.linklike:hover { color: var(--navy); }
+
+.signin-note {
+  flex: 1; min-width: 240px;
+  font-size: 12px; color: var(--body); line-height: 1.5; margin: 0;
+}

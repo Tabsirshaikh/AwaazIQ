@@ -534,47 +534,22 @@
     return session ? { Authorization: `Bearer ${session.token}` } : {};
   }
 
-  function profileRows(user) {
-    return [
-      ["Name", user.full_name],
-      ["Mobile", user.mobile],
-      ["E-mail", user.email],
-      ["Address", [user.address, user.pincode].filter(Boolean).join(" · ")],
-    ].filter(([, v]) => v);
-  }
-
   function applyAuthState() {
     const signedIn = !!session;
 
+    // There is no longer a "who is reporting" section. It had nothing for a
+    // citizen to do -- signed out it only repeated the header's own Sign In
+    // and Register buttons, and signed in it restated details they had
+    // already given. The header pill carries who you are; the note by the
+    // submit button carries why you cannot file yet.
     el("authGuest").hidden = signedIn;
     el("authLogged").hidden = !signedIn;
-    el("authGateBanner").hidden = signedIn;
-    el("autofillBanner").hidden = !signedIn;
-
-    // The identity inputs are never filled in by hand any more, signed in or
-    // out. Left visible they would read as work still to do.
-    el("reporterGrid").hidden = true;
+    el("signinNote").hidden = signedIn;
 
     el("submit").disabled = !signedIn;
-    el("submit").title = signedIn
-      ? "" : "Sign in to file a grievance";
+    el("submit").title = signedIn ? "" : "Sign in to file a grievance";
 
-    if (signedIn) {
-      el("userNameLabel").textContent = session.user.full_name;
-      el("autofillName").textContent = session.user.full_name;
-
-      // Show what will actually be attached to the grievance. A citizen
-      // should be able to see the details being filed on their behalf, not
-      // just be told they exist.
-      const box = d3.select("#autofillBanner");
-      box.select(".profile-readout").remove();
-      const readout = box.append("div").attr("class", "profile-readout");
-      profileRows(session.user).forEach(([k, v]) => {
-        const row = readout.append("div").attr("class", "profile-readout__row");
-        row.append("span").attr("class", "profile-readout__k").text(k);
-        row.append("span").attr("class", "profile-readout__v").text(v);
-      });
-    }
+    if (signedIn) el("userNameLabel").textContent = session.user.full_name;
   }
 
   async function loadSession() {
@@ -596,95 +571,6 @@
     applyAuthState();
   }
 
-  function openAuth(tab) {
-    showAuthTab(tab || "login");
-    el("authModal").hidden = false;
-    setTimeout(() => {
-      const first = tab === "register" ? el("regFullName") : el("loginEmail");
-      if (first) first.focus();
-    }, 60);
-  }
-  function closeAuth() {
-    el("authModal").hidden = true;
-    authError("loginErrors", null);
-    authError("regErrors", null);
-  }
-  function showAuthTab(tab) {
-    const login = tab !== "register";
-    el("loginForm").hidden = !login;
-    el("registerForm").hidden = login;
-    el("tabLoginBtn").classList.toggle("active", login);
-    el("tabRegisterBtn").classList.toggle("active", !login);
-  }
-
-  function authError(boxId, message) {
-    const box = el(boxId);
-    if (!box) return;
-    box.hidden = !message;
-    box.textContent = message || "";
-  }
-
-  async function postAuth(path, payload, boxId, button, busyLabel) {
-    const original = button.textContent;
-    button.disabled = true;
-    button.textContent = busyLabel;
-    authError(boxId, null);
-    try {
-      const res = await fetch(`${API}${path}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.detail || `HTTP ${res.status}`);
-
-      session = { token: data.token, user: data.user };
-      storeToken(data.token);
-      applyAuthState();
-      closeAuth();
-      renderMine();
-      return true;
-    } catch (err) {
-      authError(boxId, err.message || "Something went wrong. Try again.");
-      return false;
-    } finally {
-      button.disabled = false;
-      button.textContent = original;
-    }
-  }
-
-  async function doLogin(event) {
-    event.preventDefault();
-    await postAuth(
-      "/auth/login",
-      { email: val("loginEmail"), password: val("loginPassword") },
-      "loginErrors",
-      el("loginSubmitBtn"),
-      "Signing in…",
-    );
-  }
-
-  async function doRegister(event) {
-    event.preventDefault();
-    const ok = await postAuth(
-      "/auth/register",
-      {
-        full_name: val("regFullName"),
-        gender: val("regGender"),
-        mobile: val("regMobile"),
-        email: val("regEmail"),
-        password: val("regPassword"),
-        address: val("regAddress"),
-        pincode: val("regPincode"),
-        state: "Maharashtra",
-      },
-      "regErrors",
-      el("regSubmitBtn"),
-      "Creating account…",
-    );
-    if (ok) el("registerForm").reset();
-  }
-
   async function doLogout() {
     const token = session && session.token;
     session = null;
@@ -700,26 +586,7 @@
     }
   }
 
-  el("btnOpenLogin").addEventListener("click", () => openAuth("login"));
-  el("btnOpenRegister").addEventListener("click", () => openAuth("register"));
-  el("gateSignInBtn").addEventListener("click", () => openAuth("login"));
-  el("gateRegisterBtn").addEventListener("click", () => openAuth("register"));
-  el("authModalClose").addEventListener("click", closeAuth);
-  el("authModalBackdrop").addEventListener("click", closeAuth);
-  el("tabLoginBtn").addEventListener("click", () => showAuthTab("login"));
-  el("tabRegisterBtn").addEventListener("click", () => showAuthTab("register"));
-  el("modalSwitchToRegister").addEventListener("click", (e) => {
-    e.preventDefault(); showAuthTab("register");
-  });
-  el("modalSwitchToLogin").addEventListener("click", (e) => {
-    e.preventDefault(); showAuthTab("login");
-  });
-  el("loginForm").addEventListener("submit", doLogin);
-  el("registerForm").addEventListener("submit", doRegister);
   el("btnLogout").addEventListener("click", doLogout);
-  document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape" && !el("authModal").hidden) closeAuth();
-  });
 
   /* --------------------------------------------------------------- boot -- */
 

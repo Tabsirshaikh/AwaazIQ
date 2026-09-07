@@ -4,8 +4,8 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>AwaazIQ — Report a problem</title>
-<link rel="stylesheet" href="css/app.css" />
-<link rel="stylesheet" href="css/report.css" />
+<link rel="stylesheet" href="css/app.css?v=auth4" />
+<link rel="stylesheet" href="css/report.css?v=auth4" />
 </head>
 <body class="citizen">
 
@@ -20,8 +20,8 @@
   <!-- Citizen Auth Area -->
   <div class="cbar__auth" id="headerAuth">
     <div class="auth-guest" id="authGuest">
-      <button type="button" class="btn btn--auth" id="btnOpenLogin">Sign In</button>
-      <button type="button" class="btn btn--auth-outline" id="btnOpenRegister">Register</button>
+      <a class="btn btn--auth" id="btnOpenLogin" href="signin.html">Sign In</a>
+      <a class="btn btn--auth-outline" id="btnOpenRegister" href="signin.html?tab=register">Register</a>
     </div>
     <div class="auth-logged" id="authLogged" hidden>
       <div class="user-pill" id="userPill">
@@ -50,81 +50,10 @@
 
   <form id="form" novalidate>
 
-    <!-- ------------------------------------------------------ reporter -- -->
+    <!-- ------------------------------------------------------ location -- -->
     <section class="card" data-step="1">
       <div class="card__head">
-        <span class="eyebrow">1 — Who is reporting</span>
-      </div>
-      <p class="card__lead">
-        So the department can reach you if they need more detail, and so the
-        same problem is not counted twice.
-      </p>
-
-      <!-- Auth prompt if guest -->
-      <div class="auth-gate-banner" id="authGateBanner">
-        <div class="auth-gate-banner__icon">🔐</div>
-        <div class="auth-gate-banner__text">
-          <strong>Citizen Sign In Required</strong>
-          <p>Please sign in or register an account to lodge an official grievance and track resolution status.</p>
-        </div>
-        <div class="auth-gate-banner__btns">
-          <button type="button" class="btn btn--primary btn--sm" id="gateSignInBtn">Sign In</button>
-          <button type="button" class="btn btn--outline btn--sm" id="gateRegisterBtn">Register</button>
-        </div>
-      </div>
-
-      <!-- Logged in autofill banner -->
-      <div class="autofill-banner" id="autofillBanner" hidden>
-        <span class="autofill-banner__icon">✓</span>
-        <span>Signed in as <strong id="autofillName"></strong> · Profile loaded automatically</span>
-      </div>
-
-      <div class="grid" id="reporterGrid">
-        <label class="f f--wide">
-          <span class="f__label">Full name <b class="req">*</b></span>
-          <input type="text" id="full_name" autocomplete="name" />
-        </label>
-
-        <label class="f">
-          <span class="f__label">Gender <b class="req">*</b></span>
-          <select id="gender">
-            <option value="">Select…</option>
-            <option value="female">Female</option>
-            <option value="male">Male</option>
-            <option value="transgender">Transgender</option>
-          </select>
-        </label>
-
-        <label class="f">
-          <span class="f__label">Mobile number <b class="req">*</b></span>
-          <input type="tel" id="mobile" inputmode="numeric" maxlength="10"
-                 placeholder="10 digits" autocomplete="tel" />
-        </label>
-
-        <label class="f">
-          <span class="f__label">E-mail <b class="req">*</b></span>
-          <input type="email" id="email" placeholder="you@example.com"
-                 autocomplete="email" />
-        </label>
-
-        <label class="f">
-          <span class="f__label">Pincode <b class="req">*</b></span>
-          <input type="text" id="pincode" inputmode="numeric" maxlength="6"
-                 placeholder="6 digits" autocomplete="postal-code" />
-        </label>
-
-        <label class="f f--wide">
-          <span class="f__label">Address <b class="req">*</b></span>
-          <input type="text" id="address" placeholder="House and street"
-                 autocomplete="street-address" />
-        </label>
-      </div>
-    </section>
-
-    <!-- ------------------------------------------------------ location -- -->
-    <section class="card" data-step="2">
-      <div class="card__head">
-        <span class="eyebrow">2 — Where the problem is</span>
+        <span class="eyebrow">1 — Where the problem is</span>
       </div>
       <p class="card__lead">
         Choose the village from the list rather than typing it. Every village
@@ -157,9 +86,9 @@
     </section>
 
     <!-- ------------------------------------------------------- problem -- -->
-    <section class="card" data-step="3">
+    <section class="card" data-step="2">
       <div class="card__head">
-        <span class="eyebrow">3 — What the problem is</span>
+        <span class="eyebrow">2 — What the problem is</span>
       </div>
 
       <div class="grid">
@@ -198,9 +127,9 @@
     </section>
 
     <!-- ------------------------------------------------------ evidence -- -->
-    <section class="card" data-step="4">
+    <section class="card" data-step="3">
       <div class="card__head">
-        <span class="eyebrow">4 — Evidence <span class="opt">optional</span></span>
+        <span class="eyebrow">3 — Evidence <span class="opt">optional</span></span>
       </div>
       <p class="card__lead">
         A photo of the broken road, the dry borewell, the shut clinic. Up to 5
@@ -215,6 +144,13 @@
 
     <div class="submitrow">
       <div class="errors" id="errors" hidden></div>
+      <p class="signin-note" id="signinNote" hidden>
+        <a class="linklike" href="signin.html">Sign in</a>
+        or
+        <a class="linklike" href="signin.html?tab=register">create an account</a>
+        to file this grievance. Your name and contact details come from your
+        account, so there is nothing here to fill in.
+      </p>
       <button type="submit" class="btn btn--primary btn--lg" id="submit">SEND REPORT</button>
     </div>
 
@@ -270,77 +206,7 @@
 
 </main>
 
-<!-- ------------------------------------------------------- auth modal -- -->
-<div class="modal" id="authModal" hidden>
-  <div class="modal__backdrop" id="authModalBackdrop"></div>
-  <div class="modal__card" role="dialog" aria-modal="true">
-    <button type="button" class="modal__close" id="authModalClose" aria-label="Close dialog">&times;</button>
-    <div class="modal__tabs">
-      <button type="button" class="modal__tab active" id="tabLoginBtn">Sign In</button>
-      <button type="button" class="modal__tab" id="tabRegisterBtn">New Citizen Registration</button>
-    </div>
-
-    <!-- Sign In Panel -->
-    <form id="loginForm" class="auth-panel" novalidate>
-      <label class="f">
-        <span class="f__label">E-mail <b class="req">*</b></span>
-        <input type="email" id="loginEmail" placeholder="you@example.com" autocomplete="email" required />
-      </label>
-      <label class="f">
-        <span class="f__label">Password <b class="req">*</b></span>
-        <input type="password" id="loginPassword" placeholder="••••••••" autocomplete="current-password" required />
-      </label>
-      <div class="errors auth-errors" id="loginErrors" hidden></div>
-      <button type="submit" class="btn btn--primary btn--block" id="loginSubmitBtn">Sign In</button>
-      <p class="modal__subtext">New here? <a href="#" id="modalSwitchToRegister">Create an account</a></p>
-    </form>
-
-    <!-- Register Panel -->
-    <form id="registerForm" class="auth-panel" hidden novalidate>
-      <p class="modal__intro">Your account details will be used to verify your grievance and contact you regarding actions taken.</p>
-      <div class="grid">
-        <label class="f f--wide">
-          <span class="f__label">Full Name <b class="req">*</b></span>
-          <input type="text" id="regFullName" autocomplete="name" required />
-        </label>
-        <label class="f">
-          <span class="f__label">Gender <b class="req">*</b></span>
-          <select id="regGender" required>
-            <option value="">Select…</option>
-            <option value="female">Female</option>
-            <option value="male">Male</option>
-            <option value="transgender">Transgender</option>
-          </select>
-        </label>
-        <label class="f">
-          <span class="f__label">Mobile Number <b class="req">*</b></span>
-          <input type="tel" id="regMobile" maxlength="10" placeholder="10 digits (starts 6-9)" autocomplete="tel" required />
-        </label>
-        <label class="f">
-          <span class="f__label">E-mail <b class="req">*</b></span>
-          <input type="email" id="regEmail" placeholder="you@example.com" autocomplete="email" required />
-        </label>
-        <label class="f">
-          <span class="f__label">Password <b class="req">*</b></span>
-          <input type="password" id="regPassword" placeholder="At least 6 characters" autocomplete="new-password" required />
-        </label>
-        <label class="f">
-          <span class="f__label">Pincode <b class="req">*</b></span>
-          <input type="text" id="regPincode" maxlength="6" placeholder="6 digits" autocomplete="postal-code" required />
-        </label>
-        <label class="f f--wide">
-          <span class="f__label">Address <b class="req">*</b></span>
-          <input type="text" id="regAddress" placeholder="House and street" autocomplete="street-address" required />
-        </label>
-      </div>
-      <div class="errors auth-errors" id="regErrors" hidden></div>
-      <button type="submit" class="btn btn--primary btn--block" id="regSubmitBtn">Create Account &amp; Continue</button>
-      <p class="modal__subtext">Already have an account? <a href="#" id="modalSwitchToLogin">Sign in</a></p>
-    </form>
-  </div>
-</div>
-
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
-<script src="js/report.js?v=auth3"></script>
+<script src="js/report.js?v=auth4"></script>
 </body>
 </html>
