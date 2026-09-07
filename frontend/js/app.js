@@ -276,6 +276,16 @@
   // Which evidence block belongs to which score term. Two of them are named
   // differently on each side: the equity term is computed from reporting
   // capacity, and the strategic term from scheme eligibility.
+  // Every asset_source a work group can carry, matched to what recompute.py's
+  // name_work_group actually stamps (realdata.py + load_udise_schools.py +
+  // load_health_facilities.py). Kept as data, not as branches in the render
+  // call, so adding a register only ever means adding one line here.
+  const REGISTER_NAMES = {
+    udise: "UDISE school register",
+    nic_healthgis: "NIC health facility register",
+    pmgsy: "PMGSY works register",
+  };
+
   const EVIDENCE_KEY = {
     demand: "demand",
     population: "population",
@@ -647,8 +657,15 @@
       card.append("div").attr("class", "wg__text").text(g.sample_text || "");
 
       if (g.asset_label) {
+        // A lookup, not a two-way ternary. The ternary this replaced named
+        // exactly one register explicitly and called everything else "UDISE
+        // school register" -- which was correct only by accident until the
+        // health register (asset_source "nic_healthgis") shipped and every
+        // hospital started being credited to a school register instead. An
+        // unrecognised source still needs to say SOMETHING true, so it names
+        // itself rather than repeating the same mistake with a new guess.
         card.append("div").attr("class", "wg__asset")
-          .text(`Named from the ${g.asset_source === "pmgsy" ? "PMGSY works register" : "UDISE school register"}` +
+          .text(`Named from the ${REGISTER_NAMES[g.asset_source] || `${g.asset_source} register`}` +
                 (g.asset_external_id ? ` · ${g.asset_external_id}` : ""));
       } else if (cands.length) {
         // A shortlist, not an answer. Saying which of 16 schools a village's
