@@ -129,7 +129,20 @@
 
   async function loadDistricts() {
     try {
-      fill(el("district"), await getJSON("/gazetteer/districts"), "Select district…");
+      const rows = await getJSON("/gazetteer/districts");
+      fill(el("district"), rows, "Select district…");
+
+      // Say the boundary out loud rather than let a citizen discover it by
+      // finding only two options in an otherwise-normal-looking dropdown --
+      // that read as a loading glitch, not as "this area isn't covered yet",
+      // which is what actually happened before this note existed. Built
+      // from the live list so it can never name a district we don't have.
+      const names = rows.map((r) => r.name);
+      el("coverageDistricts").textContent =
+        names.length > 1
+          ? `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`
+          : (names[0] || "no districts yet");
+      el("coverageNote").hidden = false;
     } catch {
       fill(el("district"), [], "Could not load districts — is the API running?");
     }

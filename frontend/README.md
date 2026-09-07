@@ -293,6 +293,24 @@ Only Kolhapur and Nashik carry citizen data — 2 of 726 districts. The India
 view says so rather than implying national coverage, and districts without
 data are rendered inactive and are not clickable.
 
+**This is a rural pilot by design, not a temporary gap.** Five of the nine
+priority-score terms (demand, population, urgency, feasibility, cost penalty)
+are already location-general -- they would work for a city today. The other
+four (infra deficit, vulnerability, equity, scheme eligibility) are built
+from schemes that only exist in rural governance: PMGSY roads, JJM village
+water, BharatNet-to-Gram-Panchayat connectivity, Census Village Amenities.
+A municipal corporation has none of those -- it has NUHM health centres,
+AMRUT water coverage, and ward-level administration instead, none of which
+is loaded.
+
+The confidence-gate in `scoring.py` was already built to degrade gracefully
+when a term's real data is missing (falls back to a proxy, applies a 0.85x
+confidence penalty) -- so extending to a city is architecturally a data-
+loading exercise, not a redesign. It has deliberately not been done for this
+pilot: `report.html` states the two-district boundary explicitly on the form
+itself (built from the live district list, not hardcoded), rather than
+leaving a citizen outside it to discover an empty dropdown and guess why.
+
 ## File layout
 
 | File | Owns |

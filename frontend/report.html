@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>AwaazIQ — Report a problem</title>
 <link rel="stylesheet" href="css/app.css?v=auth4" />
-<link rel="stylesheet" href="css/report.css?v=auth4" />
+<link rel="stylesheet" href="css/report.css?v=coverage1" />
 </head>
 <body class="citizen">
 
@@ -61,11 +61,25 @@
         can be grouped with your neighbours' instead of getting stuck.
       </p>
 
+      <!-- Pilot boundary, stated where a citizen actually hits it. The old
+           "Pilot covers Maharashtra only" hint next to the state field was
+           worse than saying nothing: Mumbai and Pune are in Maharashtra too,
+           so it read as coverage that does not exist. This is built from the
+           live district list rather than a hardcoded name, so it can never
+           go stale if the pilot districts change. -->
+      <div class="coverage-note" id="coverageNote" hidden>
+        <span class="coverage-note__icon">📍</span>
+        <span class="coverage-note__text">
+          This pilot currently covers <strong id="coverageDistricts"></strong>
+          only. If your area is not in the list below, AwaazIQ cannot place
+          your report on the map yet — there is nowhere accurate to send it.
+        </span>
+      </div>
+
       <div class="grid">
         <label class="f">
           <span class="f__label">State <b class="req">*</b></span>
           <select id="state"><option value="Maharashtra">Maharashtra</option></select>
-          <span class="f__hint">Pilot covers Maharashtra only</span>
         </label>
 
         <label class="f">
@@ -207,6 +221,6 @@
 </main>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
-<script src="js/report.js?v=auth4"></script>
+<script src="js/report.js?v=coverage1"></script>
 </body>
 </html>

@@ -747,3 +747,23 @@ body.citizen { overflow: auto; height: auto; min-height: 100%; }
   flex: 1; min-width: 240px;
   font-size: 12px; color: var(--body); line-height: 1.5; margin: 0;
 }
+
+/* ---------------------------------------------------------- coverage note -- */
+
+/* States the pilot boundary where a citizen actually hits it, rather than
+   letting them discover "only 2 options" in the district dropdown and
+   wonder if the page is broken. Amber, not red/green: this is a scope fact,
+   not an error and not a success. */
+.coverage-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  background: var(--amber-soft);
+  border: 1px solid #e0c085;
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin-bottom: 16px;
+}
+.coverage-note__icon { font-size: 15px; line-height: 1.4; }
+.coverage-note__text { font-size: 12.5px; line-height: 1.5; color: #6b4d17; }
+.coverage-note__text strong { color: #3d2c0c; }
