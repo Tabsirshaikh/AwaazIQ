@@ -65,7 +65,7 @@
         .attr("class", `row${isActive ? " row--active" : ""}${isPicked ? " row--picked" : ""}`)
         .on("click", () => {
           A.navigate("district", { state: "Maharashtra", district: c.district })
-            .then(() => A.navigate("cluster", { cluster: c }));
+            .then(() => A.navigate("cluster", { cluster: c, state: "Maharashtra", district: c.district }));
         });
 
       row.append("div").attr("class", "row__rank").text(`#${i + 1}`);

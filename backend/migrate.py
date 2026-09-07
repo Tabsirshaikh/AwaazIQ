@@ -19,6 +19,8 @@ ADDED_COLUMNS: dict[str, dict[str, str]] = {
     "citizen_request": {
         # Line-department routing, added with the CPGRAMS-level intake form.
         "department": "TEXT",
+        # Registered citizen who filed the report.
+        "user_id": "INTEGER",
     },
     "work_group": {
         # The named asset a work group is about, added with the UDISE school

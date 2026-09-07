@@ -5,7 +5,7 @@ import requests
 
 sys.stdout.reconfigure(encoding="utf-8")
 
-API_URL = "http://localhost:8000/citizen-report"
+API_URL = "http://localhost:8001/citizen-report"
 DB_PATH = "hackathon.db"
 
 TEST_CASES = [

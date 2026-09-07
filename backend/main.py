@@ -13,6 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import models
 from database import Base, engine
 from migrate import run_migrations
+from routes_auth import router as auth_router
 from routes_gazetteer import router as gazetteer_router
 from routes_citizen_report import router as citizen_report_router
 from routes_dashboard import router as dashboard_router
@@ -28,6 +29,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(auth_router)
 app.include_router(citizen_report_router)
 app.include_router(dashboard_router)
 app.include_router(intelligence_router)

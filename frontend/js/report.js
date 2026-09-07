@@ -15,10 +15,12 @@
    mobile, e-mail, address, pincode, state/district, department, evidence),
    with two deliberate differences:
 
-     - No account and no password. CPGRAMS lodges grievances only from
-       registered users; a villager filing one complaint in their life should
-       not have to invent and remember a credential, so identity is captured
-       per report instead.
+     - Identity is asked for ONCE, at registration, and never again. CPGRAMS
+       makes a citizen restate their name, address and mobile on every
+       grievance; here the account carries them and this form posts none of
+       them. That is not only less typing: the same person retyping their
+       name two ways would be recorded as two reporters, and the demand term
+       would read that as corroboration.
      - The place is chosen from the gazetteer, one level deeper than CPGRAMS
        goes, down to the village. Every option offered is a village the
        pipeline can already geocode, so a complaint cannot be stranded by a
@@ -29,7 +31,7 @@
   "use strict";
 
   const params = new URLSearchParams(location.search);
-  const API = (params.get("api") || "http://127.0.0.1:8000").replace(/\/$/, "");
+  const API = (params.get("api") || "http://127.0.0.1:8001").replace(/\/$/, "");
 
   // Carry ?api= across to the dashboard, so pointing this page at a
   // non-default backend doesn't silently send officials to another one.
@@ -212,14 +214,10 @@
       return v;
     };
 
+    // Identity is deliberately absent. It is read off the signed-in account
+    // by the server, so there is nothing here to validate and nothing a
+    // crafted request could override.
     const data = {
-      full_name: need("full_name", "Full name"),
-      gender: need("gender", "Gender"),
-      mobile: val("mobile"),
-      email: val("email"),
-      address: need("address", "Address"),
-      pincode: val("pincode"),
-      state: val("state") || "Maharashtra",
       district: need("district", "District"),
       block: need("block", "Block"),
       village: need("village", "Village"),
@@ -227,14 +225,8 @@
       text: val("text"),
     };
 
-    if (!/^[6-9]\d{9}$/.test(data.mobile)) {
-      errors.push(["mobile", "Mobile must be 10 digits starting with 6, 7, 8 or 9"]);
-    }
-    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(data.email)) {
-      errors.push(["email", "Enter a valid e-mail address"]);
-    }
-    if (!/^\d{6}$/.test(data.pincode)) {
-      errors.push(["pincode", "Pincode must be 6 digits"]);
+    if (!session) {
+      errors.push(["text", "Sign in or create an account to file a grievance"]);
     }
     if (!val("category")) errors.push(["category", "Choose the type of problem"]);
     if (!data.text && !el("audio").files[0]) {
@@ -314,7 +306,11 @@
 
     let saved;
     try {
-      const res = await fetch(`${API}/citizen-report`, { method: "POST", body: fd });
+      const res = await fetch(`${API}/citizen-report`, {
+        method: "POST",
+        headers: authHeaders(),
+        body: fd,
+      });
       if (!res.ok) {
         const detail = await res.json().catch(() => ({}));
         throw new Error(detail.detail || `HTTP ${res.status}`);
@@ -384,11 +380,11 @@
     // follows what the description actually says, because that is what gets
     // compared against other people's descriptions.
     if (sent.declared && saved.issue_category &&
-        saved.issue_category !== sent.declared) {
+      saved.issue_category !== sent.declared) {
       box.append("div").attr("class", "result__banner result__banner--warn")
         .html(`You chose <b>${sent.declared}</b>, but the description reads as ` +
-              `<b>${saved.issue_category}</b>. It still goes to the department ` +
-              `you picked; the grouping follows the description.`);
+          `<b>${saved.issue_category}</b>. It still goes to the department ` +
+          `you picked; the grouping follows the description.`);
     }
 
     const next = box.append("div").attr("class", "next");
@@ -486,7 +482,7 @@
       rb.append("div").attr("class", "rankbar__num").text(`#${c.rank}`);
       rb.append("div").attr("class", "rankbar__of")
         .html(`of ${c.ranked_out_of} clusters in the state, scored ` +
-              `<b>${(c.priority_score ?? 0).toFixed(1)}</b> out of 100`);
+          `<b>${(c.priority_score ?? 0).toFixed(1)}</b> out of 100`);
     }
   }
 
@@ -502,6 +498,228 @@
     // them to notice something appeared off-screen.
     s.node().scrollIntoView({ behavior: "smooth", block: "center" });
   }
+
+  /* --------------------------------------------------------------- auth -- */
+
+  /**
+   * Citizen sign-in.
+   *
+   * The point of an account here is that the "who is reporting" section
+   * stops being a form. CPGRAMS asks for name, gender, mobile, e-mail,
+   * address and pincode on every single grievance; once those live on an
+   * account there is no reason to ask again, and asking again is actively
+   * harmful -- the same person retyping their name two ways is recorded as
+   * two people, which the demand term would read as corroboration.
+   *
+   * So: signed in, the section shows the profile read-only and the form
+   * posts none of it. The server reads identity off the account (see
+   * validate_intake), which also means a hand-crafted POST cannot file a
+   * grievance under someone else's name.
+   */
+  const TOKEN_KEY = "awaaziq_citizen_token";
+  let session = null;               // { token, user } once signed in
+
+  function storedToken() {
+    try { return localStorage.getItem(TOKEN_KEY); } catch { return null; }
+  }
+  function storeToken(token) {
+    try {
+      if (token) localStorage.setItem(TOKEN_KEY, token);
+      else localStorage.removeItem(TOKEN_KEY);
+    } catch { /* private mode: the session still works for this page load */ }
+  }
+
+  /** Authorization header for a signed-in request, or {} when a guest. */
+  function authHeaders() {
+    return session ? { Authorization: `Bearer ${session.token}` } : {};
+  }
+
+  function profileRows(user) {
+    return [
+      ["Name", user.full_name],
+      ["Mobile", user.mobile],
+      ["E-mail", user.email],
+      ["Address", [user.address, user.pincode].filter(Boolean).join(" · ")],
+    ].filter(([, v]) => v);
+  }
+
+  function applyAuthState() {
+    const signedIn = !!session;
+
+    el("authGuest").hidden = signedIn;
+    el("authLogged").hidden = !signedIn;
+    el("authGateBanner").hidden = signedIn;
+    el("autofillBanner").hidden = !signedIn;
+
+    // The identity inputs are never filled in by hand any more, signed in or
+    // out. Left visible they would read as work still to do.
+    el("reporterGrid").hidden = true;
+
+    el("submit").disabled = !signedIn;
+    el("submit").title = signedIn
+      ? "" : "Sign in to file a grievance";
+
+    if (signedIn) {
+      el("userNameLabel").textContent = session.user.full_name;
+      el("autofillName").textContent = session.user.full_name;
+
+      // Show what will actually be attached to the grievance. A citizen
+      // should be able to see the details being filed on their behalf, not
+      // just be told they exist.
+      const box = d3.select("#autofillBanner");
+      box.select(".profile-readout").remove();
+      const readout = box.append("div").attr("class", "profile-readout");
+      profileRows(session.user).forEach(([k, v]) => {
+        const row = readout.append("div").attr("class", "profile-readout__row");
+        row.append("span").attr("class", "profile-readout__k").text(k);
+        row.append("span").attr("class", "profile-readout__v").text(v);
+      });
+    }
+  }
+
+  async function loadSession() {
+    const token = storedToken();
+    if (!token) { applyAuthState(); return; }
+    try {
+      const res = await fetch(`${API}/auth/me`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      session = { token, user: data.user };
+    } catch {
+      // An expired or rejected token must not leave the page looking signed
+      // in; the citizen would fill everything in and only find out at submit.
+      storeToken(null);
+      session = null;
+    }
+    applyAuthState();
+  }
+
+  function openAuth(tab) {
+    showAuthTab(tab || "login");
+    el("authModal").hidden = false;
+    setTimeout(() => {
+      const first = tab === "register" ? el("regFullName") : el("loginEmail");
+      if (first) first.focus();
+    }, 60);
+  }
+  function closeAuth() {
+    el("authModal").hidden = true;
+    authError("loginErrors", null);
+    authError("regErrors", null);
+  }
+  function showAuthTab(tab) {
+    const login = tab !== "register";
+    el("loginForm").hidden = !login;
+    el("registerForm").hidden = login;
+    el("tabLoginBtn").classList.toggle("active", login);
+    el("tabRegisterBtn").classList.toggle("active", !login);
+  }
+
+  function authError(boxId, message) {
+    const box = el(boxId);
+    if (!box) return;
+    box.hidden = !message;
+    box.textContent = message || "";
+  }
+
+  async function postAuth(path, payload, boxId, button, busyLabel) {
+    const original = button.textContent;
+    button.disabled = true;
+    button.textContent = busyLabel;
+    authError(boxId, null);
+    try {
+      const res = await fetch(`${API}${path}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.detail || `HTTP ${res.status}`);
+
+      session = { token: data.token, user: data.user };
+      storeToken(data.token);
+      applyAuthState();
+      closeAuth();
+      renderMine();
+      return true;
+    } catch (err) {
+      authError(boxId, err.message || "Something went wrong. Try again.");
+      return false;
+    } finally {
+      button.disabled = false;
+      button.textContent = original;
+    }
+  }
+
+  async function doLogin(event) {
+    event.preventDefault();
+    await postAuth(
+      "/auth/login",
+      { email: val("loginEmail"), password: val("loginPassword") },
+      "loginErrors",
+      el("loginSubmitBtn"),
+      "Signing in…",
+    );
+  }
+
+  async function doRegister(event) {
+    event.preventDefault();
+    const ok = await postAuth(
+      "/auth/register",
+      {
+        full_name: val("regFullName"),
+        gender: val("regGender"),
+        mobile: val("regMobile"),
+        email: val("regEmail"),
+        password: val("regPassword"),
+        address: val("regAddress"),
+        pincode: val("regPincode"),
+        state: "Maharashtra",
+      },
+      "regErrors",
+      el("regSubmitBtn"),
+      "Creating account…",
+    );
+    if (ok) el("registerForm").reset();
+  }
+
+  async function doLogout() {
+    const token = session && session.token;
+    session = null;
+    storeToken(null);
+    applyAuthState();
+    if (token) {
+      // Best effort: the local session is already gone, so a failure here
+      // must not leave the citizen looking signed in.
+      fetch(`${API}/auth/logout`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      }).catch(() => {});
+    }
+  }
+
+  el("btnOpenLogin").addEventListener("click", () => openAuth("login"));
+  el("btnOpenRegister").addEventListener("click", () => openAuth("register"));
+  el("gateSignInBtn").addEventListener("click", () => openAuth("login"));
+  el("gateRegisterBtn").addEventListener("click", () => openAuth("register"));
+  el("authModalClose").addEventListener("click", closeAuth);
+  el("authModalBackdrop").addEventListener("click", closeAuth);
+  el("tabLoginBtn").addEventListener("click", () => showAuthTab("login"));
+  el("tabRegisterBtn").addEventListener("click", () => showAuthTab("register"));
+  el("modalSwitchToRegister").addEventListener("click", (e) => {
+    e.preventDefault(); showAuthTab("register");
+  });
+  el("modalSwitchToLogin").addEventListener("click", (e) => {
+    e.preventDefault(); showAuthTab("login");
+  });
+  el("loginForm").addEventListener("submit", doLogin);
+  el("registerForm").addEventListener("submit", doRegister);
+  el("btnLogout").addEventListener("click", doLogout);
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && !el("authModal").hidden) closeAuth();
+  });
 
   /* --------------------------------------------------------------- boot -- */
 
@@ -569,6 +787,9 @@
 
   loadDistricts();
   loadDepartments();
+  // Restores a signed-in citizen on reload, so the profile is already on
+  // screen rather than appearing a beat later.
+  loadSession();
   renderFiles();
   renderMine();
 

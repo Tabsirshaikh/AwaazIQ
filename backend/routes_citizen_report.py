@@ -43,6 +43,7 @@ from models import (  # noqa: E402
     Gazetteer,
     ReportAttachment,
 )
+from routes_auth import get_current_user_from_token  # noqa: E402
 from routes_gazetteer import PILOT_STATE, valid_department  # noqa: E402
 
 router = APIRouter()
@@ -198,24 +199,46 @@ def _clean(form, key: str) -> str | None:
     return value or None
 
 
-def validate_intake(form) -> dict:
+def validate_intake(form, user=None) -> dict:
     """
     Validate the CPGRAMS-level field set and return it normalised.
 
-    Only runs when `full_name` is present, which is what the citizen intake
-    form always sends. Every message names the field and says what is wrong
-    with it, because a form that just says "invalid input" is a form people
-    give up on.
+    Identity comes from the signed-in account, not from the form. A citizen
+    who has already registered their name, gender, mobile, e-mail, address
+    and pincode should never be asked to type them again to file their second
+    complaint -- retyping is not verification, and every retyped field is
+    another chance for the same person to be recorded under two spellings and
+    counted as two corroborating voices.
+
+    So when `user` is present those six fields are read off the account and
+    the form's own copies are ignored outright. What the form still has to
+    supply is what changes per complaint: which village, and which department.
+
+    `user` is None only on the legacy path where a form posts identity
+    directly; that path still validates every field, so nothing that worked
+    before stops working.
+
+    Every message names the field and says what is wrong with it, because a
+    form that just says "invalid input" is a form people give up on.
     """
     errors: list[str] = []
 
-    full_name = _clean(form, "full_name")
-    gender = (_clean(form, "gender") or "").lower() or None
-    mobile = _clean(form, "mobile")
-    email = _clean(form, "email")
-    address = _clean(form, "address")
-    pincode = _clean(form, "pincode")
-    state = _clean(form, "state") or PILOT_STATE
+    if user is not None:
+        full_name = user.full_name
+        gender = (user.gender or "").lower() or None
+        mobile = user.mobile
+        email = user.email
+        address = user.address
+        pincode = user.pincode
+        state = user.state or PILOT_STATE
+    else:
+        full_name = _clean(form, "full_name")
+        gender = (_clean(form, "gender") or "").lower() or None
+        mobile = _clean(form, "mobile")
+        email = _clean(form, "email")
+        address = _clean(form, "address")
+        pincode = _clean(form, "pincode")
+        state = _clean(form, "state") or PILOT_STATE
     district = _clean(form, "district")
     block = _clean(form, "block")
     village = _clean(form, "village")
@@ -364,14 +387,34 @@ async def create_citizen_report(request: Request, db: Session = Depends(get_db))
     )
 
     try:
+        user = None
+        auth_header = request.headers.get("authorization")
+        token = None
+        if auth_header and auth_header.startswith("Bearer "):
+            token = auth_header[7:].strip()
+
         if is_form:
             form = await request.form()
+            if not token:
+                token = _clean(form, "token") or _clean(form, "auth_token")
 
-            # The intake form always sends full_name; its presence is what
-            # turns on CPGRAMS-level validation. Without it this is the plain
-            # audio-upload path that shipped first, left working as it was.
-            if _clean(form, "full_name"):
-                intake = validate_intake(form)
+            if token:
+                user = get_current_user_from_token(token, db)
+
+            # What marks a submission as the full citizen intake rather than
+            # the bare {"text": ...} path. `village` and `department` are the
+            # fields the form always sends now that identity is read off the
+            # account instead of retyped -- keying this on `full_name` alone
+            # would silently downgrade every signed-in grievance to an
+            # anonymous text report, losing its department, its chosen
+            # village, and its link to the citizen.
+            if _clean(form, "department") or _clean(form, "village") or _clean(form, "full_name"):
+                if not user:
+                    raise HTTPException(
+                        status_code=401,
+                        detail="Please sign in or create an account to file a grievance",
+                    )
+                intake = validate_intake(form, user)
 
             text = _clean(form, "text")
             upload = form.get("file")
@@ -457,6 +500,7 @@ async def create_citizen_report(request: Request, db: Session = Depends(get_db))
             confidence=confidence,
             is_synthetic=result["is_synthetic"],
             department=intake["department"] if intake else None,
+            user_id=user.id if user else None,
         )
         db.add(citizen_request)
         db.commit()

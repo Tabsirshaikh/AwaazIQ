@@ -21,7 +21,7 @@
   // The API port is configurable so the dashboard works whether the backend
   // was started on the README's 8000 or anything else: ?api=http://host:port
   const params = new URLSearchParams(location.search);
-  const API = (params.get("api") || "http://127.0.0.1:8000").replace(/\/$/, "");
+  const API = (params.get("api") || "http://127.0.0.1:8001").replace(/\/$/, "");
 
   const PILOT_STATE = "Maharashtra";
   const TOPO_URL = "data/india.topo.json";
@@ -66,13 +66,23 @@
   }
 
   /** Bounding box of a feature in projected pixels, padded. */
-  function fitTransform(feature, padding = 0.82) {
-    const [[x0, y0], [x1, y1]] = path.bounds(feature);
+  function fitTransform(feature, padding = 0.90) {
+    if (!feature) {
+      return { k: 1, x: 0, y: 0 };
+    }
+    const bounds = path.bounds(feature);
+    if (!bounds || !Array.isArray(bounds) || bounds.length < 2) {
+      return { k: 1, x: 0, y: 0 };
+    }
+    const [[x0, y0], [x1, y1]] = bounds;
     const dx = x1 - x0;
     const dy = y1 - y0;
+    if (!Number.isFinite(dx) || !Number.isFinite(dy) || dx <= 0 || dy <= 0) {
+      return { k: 1, x: 0, y: 0 };
+    }
     const k = Math.min(width / dx, height / dy) * padding;
     return {
-      k,
+      k: Number.isFinite(k) && k > 0 ? k : 1,
       x: width / 2 - k * (x0 + x1) / 2,
       y: height / 2 - k * (y0 + y1) / 2,
     };
@@ -85,10 +95,11 @@
    *  because a right-hand overlay is a plausible thing to add back. */
   function pointTransform(lon, lat, k, rightInset = 0) {
     const [px, py] = projection([lon, lat]);
+    const safeK = Number.isFinite(k) && k > 0 ? k : 1;
     return {
-      k,
-      x: (width - rightInset) / 2 - k * px,
-      y: height / 2 - k * py,
+      k: safeK,
+      x: (width - rightInset) / 2 - safeK * px,
+      y: height / 2 - safeK * py,
     };
   }
 
@@ -102,12 +113,22 @@
    * what turned district view into a field of giant white blobs.
    */
   function animateTo(target, duration = 900) {
+    if (!target || !Number.isFinite(target.k) || !Number.isFinite(target.x) || !Number.isFinite(target.y)) {
+      console.warn("Invalid animateTo target:", target);
+      return;
+    }
+    const currentTransform = root.attr("transform") || "";
+    if (duration === 0 || currentTransform.includes("NaN")) {
+      root.interrupt().attr("transform", `translate(${target.x},${target.y}) scale(${target.k})`);
+      applyZoomCompensation(target.k);
+      return;
+    }
     root
       .transition()
       .duration(duration)
       .ease(d3.easeCubicInOut)
       .attr("transform", `translate(${target.x},${target.y}) scale(${target.k})`)
-      .on("end", applyZoomCompensation);
+      .on("end", () => applyZoomCompensation(target.k));
     // Compensate continuously so lines don't visibly thicken mid-flight.
     d3.transition()
       .duration(duration)
@@ -120,19 +141,21 @@
   }
 
   function currentK() {
-    const t = root.attr("transform");
-    const m = t && t.match(/scale\(([\d.]+)\)/);
-    return m ? parseFloat(m[1]) : 1;
+    const t = root.attr("transform") || "";
+    const m = t.match(/scale\(([\d.-]+)\)/);
+    const val = m ? parseFloat(m[1]) : NaN;
+    return (Number.isFinite(val) && val > 0) ? val : ((Number.isFinite(view.k) && view.k > 0) ? view.k : 1);
   }
 
   /** Keep strokes and bubbles a constant on-screen size as we zoom. */
   function applyZoomCompensation(k) {
-    const z = k || view.k;
+    const raw = k || view.k;
+    const z = (Number.isFinite(raw) && raw > 0) ? raw : 1;
     gStates.selectAll("path").attr("stroke-width", 0.7 / z);
     gDistricts.selectAll("path").attr("stroke-width", 0.6 / z);
     gOutline.selectAll("path").attr("stroke-width", 1.4 / z);
     gClusters.selectAll("circle")
-      .attr("r", (d) => radiusScale(d.population_affected || 0) / z)
+      .attr("r", (d) => (radiusScale ? radiusScale(d.population_affected || 0) : 4) / z)
       .attr("stroke-width", 1.3 / z);
     gReports.selectAll("circle").attr("r", 1.9 / z);
     gLabels.selectAll("text").attr("font-size", `${11 / z}px`)
@@ -161,10 +184,16 @@
 
   function renderBreadcrumb() {
     const crumbs = [{ label: "India", level: "india" }];
-    if (nav.state) crumbs.push({ label: nav.state, level: "state" });
-    if (nav.district) crumbs.push({ label: nav.district, level: "district" });
+    if (nav.state) crumbs.push({ label: nav.state, level: "state", state: nav.state });
+    if (nav.district) crumbs.push({ label: nav.district, level: "district", state: nav.state, district: nav.district });
     if (nav.cluster) {
-      crumbs.push({ label: `Cluster ${nav.cluster.id} · ${nav.cluster.block || ""}`.trim(), level: "cluster" });
+      crumbs.push({
+        label: `Cluster ${nav.cluster.id} · ${nav.cluster.block || ""}`.trim(),
+        level: "cluster",
+        state: nav.state,
+        district: nav.district,
+        cluster: nav.cluster,
+      });
     }
 
     const el = d3.select("#breadcrumb");
@@ -174,13 +203,18 @@
       el.append("button")
         .attr("class", `crumb${i === crumbs.length - 1 ? " crumb--current" : ""}`)
         .text(c.label)
-        .on("click", () => { if (i < crumbs.length - 1) navigate(c.level); });
+        .on("click", () => {
+          if (i < crumbs.length - 1) {
+            navigate(c.level, { state: c.state, district: c.district, cluster: c.cluster });
+          }
+        });
     });
     if (crumbs.length > 1) {
+      const prev = crumbs[crumbs.length - 2];
       el.append("button")
         .attr("class", "back-btn")
         .text("← BACK")
-        .on("click", () => navigate(crumbs[crumbs.length - 2].level));
+        .on("click", () => navigate(prev.level, { state: prev.state, district: prev.district, cluster: prev.cluster }));
     }
   }
 
@@ -661,7 +695,8 @@
 
   function drawStates() {
     const sel = gStates.selectAll("path").data(statesFC.features, (d) => d.properties.st_nm);
-    sel.enter().append("path")
+    const enter = sel.enter().append("path").attr("d", path);
+    enter.merge(sel)
       .attr("d", path)
       .attr("class", (d) =>
         d.properties.st_nm === PILOT_STATE ? "geo geo--active" : "geo geo--dim")
@@ -723,7 +758,7 @@
       .attr("cy", (d) => projection([d.centroid_lon, d.centroid_lat])[1])
       .attr("r", 0)
       .attr("fill", (d) => scoreColour(d.priority_score))
-      .on("click", (e, d) => { e.stopPropagation(); navigate("cluster", { cluster: d }); })
+      .on("click", (e, d) => { e.stopPropagation(); navigate("cluster", { cluster: d, state: nav.state || PILOT_STATE, district: nav.district || d.district }); })
       .on("mousemove", (e, d) => {
         showTip(e, `
           <div class="tooltip__title">${d.block || d.district} · ${d.issue_category}</div>
@@ -799,11 +834,12 @@
       gDistricts.selectAll("path").remove();
       gReports.selectAll("circle").remove();
       drawOutline(null);
-      view = fitTransform(india.statesMerged, 0.9);
+      view = fitTransform(india.statesMerged, 1.05);
       drawStates();
       drawClusters([]);
       drawLabels([], "st_nm");
       animateTo(view, dur);
+      applyZoomCompensation(view.k);
       d3.select("#legendNote").text(
         "Maharashtra is the active pilot. Other states are shown for context only — " +
         "they carry no citizen data yet.");
@@ -811,20 +847,24 @@
 
     if (level === "state") {
       closePanel();
-      Object.assign(nav, { level, state: opts.state, district: null, cluster: null });
+      const targetState = opts.state || nav.state || PILOT_STATE;
+      Object.assign(nav, { level, state: targetState, district: null, cluster: null });
       gStates.selectAll("path").remove();
       gReports.selectAll("circle").remove();
-      const feat = statesFC.features.find((f) => f.properties.st_nm === opts.state);
-      view = fitTransform(feat);
-      drawDistricts(opts.state);
-      drawClusters(clusters);
-      drawOutline(feat);
-      drawLabels(
-        districtsFC.features.filter(
-          (d) => d.properties.st_nm === opts.state &&
-                 clusters.some((c) => c.district === d.properties.district)),
-        "district");
-      animateTo(view, dur);
+      const feat = statesFC.features.find((f) => f.properties.st_nm === targetState);
+      if (feat) {
+        view = fitTransform(feat);
+        drawDistricts(targetState);
+        drawClusters(clusters);
+        drawOutline(feat);
+        drawLabels(
+          districtsFC.features.filter(
+            (d) => d.properties.st_nm === targetState &&
+                   clusters.some((c) => c.district === d.properties.district)),
+          "district");
+        animateTo(view, dur);
+        applyZoomCompensation(view.k);
+      }
       d3.select("#legendNote").text(
         "Highlighted districts have citizen data. Bubbles are demand clusters, " +
         "sized by population affected.");
@@ -832,26 +872,37 @@
 
     if (level === "district") {
       closePanel();
-      Object.assign(nav, { level, state: opts.state, district: opts.district, cluster: null });
+      const targetState = opts.state || nav.state || PILOT_STATE;
+      const targetDistrict = opts.district || nav.district;
+      Object.assign(nav, { level, state: targetState, district: targetDistrict, cluster: null });
+      gStates.selectAll("path").remove();
       const feat = districtsFC.features.find(
-        (d) => d.properties.st_nm === opts.state && d.properties.district === opts.district);
-      view = fitTransform(feat);
-      drawDistricts(opts.state);
-      drawOutline(feat);
-      drawLabels([], "district");
-      drawClusters(clusters.filter((c) => c.district === opts.district));
-      animateTo(view, dur);
+        (d) => d.properties.st_nm === targetState && d.properties.district === targetDistrict);
+      if (feat) {
+        view = fitTransform(feat);
+        drawDistricts(targetState);
+        drawOutline(feat);
+        drawLabels([], "district");
+        drawClusters(clusters.filter((c) => c.district === targetDistrict));
+        animateTo(view, dur);
+        applyZoomCompensation(view.k);
+      }
 
       const pts = await ensureReports();
-      drawReports(pts.filter((f) => f.properties.district === opts.district));
+      drawReports(pts.filter((f) => f.properties.district === targetDistrict));
       d3.select("#legendNote").text(
         "Small dots are individual citizen reports. Bubbles are the clusters they " +
         "were grouped into — corroboration, not repetition.");
     }
 
     if (level === "cluster") {
-      Object.assign(nav, { level, cluster: opts.cluster });
-      const c = opts.cluster;
+      const c = opts.cluster || nav.cluster;
+      if (!c) return;
+      const targetState = opts.state || nav.state || c.state || PILOT_STATE;
+      const targetDistrict = opts.district || nav.district || c.district;
+      Object.assign(nav, { level, state: targetState, district: targetDistrict, cluster: c });
+      gStates.selectAll("path").remove();
+
       // Zoom is derived from the district's own fit, NOT from view.k. Scaling
       // the current view by 3.2 is not idempotent: navigating to the cluster
       // that is already open -- which is exactly what a resize or the dock
@@ -863,13 +914,16 @@
       // rather than beside it, and sizeToStage has already taken its height
       // out of `height`, so centring in the full width is correct.
       const districtFeat = districtsFC.features.find(
-        (d) => d.properties.st_nm === nav.state &&
-               d.properties.district === nav.district);
+        (d) => d.properties.st_nm === targetState &&
+               d.properties.district === targetDistrict);
       const base = districtFeat ? fitTransform(districtFeat).k : view.k;
       view = pointTransform(c.centroid_lon, c.centroid_lat, base * 3.2);
-      drawClusters(clusters.filter((x) => x.district === nav.district));
+      drawDistricts(targetState);
+      drawOutline(districtFeat);
+      drawClusters(clusters.filter((x) => x.district === targetDistrict));
       gClusters.selectAll("circle").classed("cluster--faded", (d) => d.id !== c.id);
       animateTo(view, dur);
+      applyZoomCompensation(view.k);
       renderPanel(c);
       d3.select("#legendNote").text(
         `Cluster ${c.id} — ${c.report_count} reports from ${c.unique_reporters} ` +
@@ -923,7 +977,7 @@
   function refit() {
     if (!india) return;
     sizeToStage();
-    projection.fitExtent([[20, 20], [width - 20, height - 20]], india.statesMerged);
+    projection.fitExtent([[12, 12], [width - 12, height - 12]], india.statesMerged);
     gStates.selectAll("path").attr("d", path);
     gDistricts.selectAll("path").attr("d", path);
     gOutline.selectAll("path").attr("d", path);
@@ -948,7 +1002,7 @@
     districtsFC = topojson.feature(topo, topo.objects.districts);
     india = { statesMerged: { type: "FeatureCollection", features: statesFC.features } };
 
-    projection.fitExtent([[20, 20], [width - 20, height - 20]], india.statesMerged);
+    projection.fitExtent([[12, 12], [width - 12, height - 12]], india.statesMerged);
 
     try {
       clusters = await d3.json(`${API}/clusters`);

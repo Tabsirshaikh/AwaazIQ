@@ -43,7 +43,7 @@
 </head>
 <body>
   <h1>Pipeline Test Console</h1>
-  <div class="sub">Internal dev tool for testing backend pipeline functions. Backend must be running at http://localhost:8000.</div>
+  <div class="sub">Internal dev tool for testing backend pipeline functions. Backend must be running at http://localhost:8001.</div>
 
   <div class="panel">
     <h2>Language Detection</h2>
@@ -100,7 +100,7 @@
   </div>
 
 <script>
-const API_BASE = "http://localhost:8000";
+const API_BASE = "http://localhost:8001";
 
 document.getElementById("lang-btn").addEventListener("click", async () => {
   const text = document.getElementById("lang-input").value;

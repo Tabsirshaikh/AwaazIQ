@@ -39,6 +39,8 @@ class CitizenRequest(Base):
     # report has not been clustered, or DBSCAN judged it noise -- a lone
     # report with nothing corroborating it.
     cluster_id = Column(Integer, ForeignKey("demand_cluster.id"), nullable=True)
+    # Registered citizen who filed the report, if authenticated.
+    user_id = Column(Integer, ForeignKey("citizen_user.id"), nullable=True)
 
 
 class CitizenRequestRaw(Base):
@@ -409,3 +411,38 @@ class WorkGroup(Base):
     asset_external_id = Column(Text)         # UDISE code, PMGSY work id
     asset_candidates = Column(Text)          # JSON: the ranked shortlist
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+
+class CitizenUser(Base):
+    """
+    Registered citizen account for filing and tracking grievances.
+    Stores CPGRAMS-compliant citizen identity details and authentication credentials.
+    """
+    __tablename__ = "citizen_user"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    email = Column(Text, unique=True, index=True, nullable=False)
+    password_hash = Column(Text, nullable=False)
+    full_name = Column(Text, nullable=False)
+    gender = Column(Text)              # male | female | transgender
+    mobile = Column(Text)              # 10 digits
+    address = Column(Text)             # house / street
+    pincode = Column(Text)             # 6 digits
+    state = Column(Text, default="Maharashtra")
+    district = Column(Text, nullable=True)
+    block = Column(Text, nullable=True)
+    village = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+
+class UserSession(Base):
+    """
+    Active citizen login session.
+    """
+    __tablename__ = "user_session"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    token = Column(Text, unique=True, index=True, nullable=False)
+    user_id = Column(Integer, ForeignKey("citizen_user.id"), nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    expires_at = Column(DateTime, nullable=True)
