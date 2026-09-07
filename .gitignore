@@ -14,3 +14,4 @@ backend/jjm_cache.json
 
 # Citizen evidence uploads: real photos of real places, never committed.
 backend/uploads/
+backend/data/india_health_facilities.geojson

@@ -564,15 +564,52 @@ Loader: `backend/load_udise_schools.py` → `public_facility`.
 | `data.gov.in` | Carries UDISE *aggregates* (enrolment by category, infrastructure counts), not the school directory |
 | `facility.abdm.gov.in` | Redirects; not resolved |
 
-### 7.3 Still missing: health and water facilities
+### 7.3 Health facilities — NIC HealthGIS · LOADED
 
-No register of individual health facilities or water schemes is loaded, so
-health and water work groups can still only be named by their village. The
-candidate leads, untested:
+`github.com/yashveeeeeeer/india-geodata`, GitHub release
+`healthcare/facilities` → `INDIA_HEALTH_FACILITIES_NIC.geojson` (~50 MB,
+147,957 features nationally). Originally **NIC HealthGIS** (healthgis.in)
+under the National Health Mission, India Open Government Licence.
 
-* National Health Facility Registry (ABDM)
-* Ayushman Arogya Mandir / HWC facility lists
-* Rural Health Statistics facility-level annexures
+Properties: `name`, `type`, `place`, `district`, `state`, `source_id`, point
+geometry.
 
-Until one lands, the panel says "no register of individual facilities exists
-for this sector yet" rather than guessing.
+| District | Facilities |
+|---|---|
+| Kolhapur | 396 |
+| Nashik | 716 |
+
+By type: 897 sub-centres, 169 PHCs, 38 CHCs, 7 taluka health offices, 1
+district health office.
+
+**The file spells Nashik "Nasik".** Filtering on our own spelling returns
+zero rows for the larger pilot district — a failure that looks exactly like
+"no data exists". The loader maps the spelling on the way in.
+
+Loader: `backend/load_health_facilities.py` → `public_facility`.
+
+Rejected first: DataMeet has no health repository (it mirrors schools only);
+`facility.abdm.gov.in` redirects with no documented bulk export; OSM has the
+same sparse rural coverage that ruled it out for schools.
+
+### 7.4 Still missing: water
+
+Water is the one sector with no facility register, and the reason is real
+rather than a gap in searching: there is no national register of individual
+water assets. A borewell, a standpost or a village pipeline is not
+nationally enumerated the way a school has a UDISE code or a health facility
+an NIC id.
+
+What does exist is **scheme-level**: Jal Jeevan Mission records coverage per
+village, which is already loaded and already feeds the water deficit. So for
+water the honest unit of work IS the village scheme, and the panel says so
+rather than implying an asset it cannot name.
+
+Coverage after §7.1–7.3, measured over work groups:
+
+| Sector | With named candidates | Unambiguously named |
+|---|---|---|
+| Education | 106 / 106 | 1 |
+| Health | 68 / 126 | 30 |
+| Road | 13 / 108 | 11 |
+| Water | 0 / 120 | 0 (no register exists) |
