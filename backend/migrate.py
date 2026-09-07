@@ -17,10 +17,27 @@ from sqlalchemy.engine import Engine
 # table -> column -> SQLite column definition
 ADDED_COLUMNS: dict[str, dict[str, str]] = {
     "citizen_request": {
+        "cluster_id": "INTEGER",
         # Line-department routing, added with the CPGRAMS-level intake form.
         "department": "TEXT",
         # Registered citizen who filed the report.
         "user_id": "INTEGER",
+    },
+    "demand_cluster": {
+        "district": "TEXT",
+        "block": "TEXT",
+        "avg_confidence": "FLOAT",
+        "settlement_count": "INTEGER",
+    },
+    "village_amenities": {
+        "conn_bharatnet_status": "TEXT",
+        "conn_bharatnet_gp": "TEXT",
+        "conn_bharatnet_distance_km": "FLOAT",
+        "jjm_households": "INTEGER",
+        "jjm_households_with_tap": "INTEGER",
+        "jjm_tap_coverage_pct": "FLOAT",
+        "jjm_habitation_count": "INTEGER",
+        "jjm_quality_status": "TEXT",
     },
     "work_group": {
         # The named asset a work group is about, added with the UDISE school
