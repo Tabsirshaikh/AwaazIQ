@@ -280,6 +280,112 @@
     }
   }
 
+  /* ------------------------------------------------ demand vs investment -- */
+
+  /**
+   * §10.2 feature #2 -- citizen demand scored against real PMGSY investment
+   * records. The engine (intelligence/investment.py) was always complete; it
+   * just had no route and no screen. This calls GET /investment-alignment and
+   * lays out the three mismatch classes.
+   *
+   * Follows the map: inside a district it asks only for that district.
+   */
+  async function openInvestment() {
+    let host = document.getElementById("investOverlay");
+    if (!host) {
+      host = document.createElement("div");
+      host.id = "investOverlay";
+      host.style.cssText =
+        "position:absolute;inset:0;z-index:60;overflow:auto;padding:26px 30px;" +
+        "background:var(--paper,#fff);color:var(--navy,#1b2a4a)";
+      document.getElementById("stage").appendChild(host);
+    }
+    host.hidden = false;
+    host.innerHTML = "<div style='font-size:13px;color:#777'>Loading demand-vs-investment…</div>";
+
+    const district = A.nav.district || null;
+    const url = new URL(`${A.getApi()}/investment-alignment`);
+    if (district) url.searchParams.set("district", district);
+
+    let data;
+    try {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      data = await res.json();
+    } catch (err) {
+      host.innerHTML =
+        `<button class='btn' id='investClose' style='flex:0 0 110px'>&larr; BACK</button>` +
+        `<p style='margin-top:16px'><b>Could not load.</b> ${err.message}. ` +
+        `The API must be reachable at <code>${A.getApi()}</code>.</p>`;
+      document.getElementById("investClose").onclick = () => { host.hidden = true; };
+      return;
+    }
+
+    const c = data.counts || {};
+    const bucket = (title, note, rows, cols) => {
+      const head =
+        `<div style="margin:22px 0 8px"><span style="font-weight:700;font-size:14px">${title}</span>` +
+        `<span style="color:#888;font-size:12px;margin-left:8px">${rows.length} shown${note ? " · " + note : ""}</span></div>`;
+      if (!rows.length) return head + `<div style="color:#999;font-size:12px">None.</div>`;
+      const th = cols.map((x) => `<th style="text-align:left;padding:4px 10px 4px 0;font-size:11px;color:#888">${x[0]}</th>`).join("");
+      const trs = rows.map((r) =>
+        `<tr>` + cols.map((x) =>
+          `<td style="padding:3px 10px 3px 0;font-size:12px;border-top:1px solid var(--border,#e2dcc6)">${x[1](r)}</td>`
+        ).join("") + `</tr>`).join("");
+      return head + `<table style="border-collapse:collapse;width:100%"><thead><tr>${th}</tr></thead><tbody>${trs}</tbody></table>`;
+    };
+
+    const rupee = (v) => (v ? "₹" + A.fmt(Math.round(v)) + " lakh" : "—");
+    const commonCols = [
+      ["Village", (r) => r.village || "—"],
+      ["District", (r) => r.district || "—"],
+      ["Nearby reports", (r) => A.fmt(r.nearby_reports || 0)],
+    ];
+
+    host.innerHTML =
+      `<div style="display:flex;align-items:center;gap:14px">` +
+      `<button class="btn" id="investClose" style="flex:0 0 110px">&larr; BACK</button>` +
+      `<div><div style="font-weight:700;font-size:16px">Demand vs investment` +
+      `${district ? " — " + district : " — all districts"}</div>` +
+      `<div style="color:#888;font-size:12px">Citizen demand joined to real PMGSY sanctioned works. ` +
+      `Demand side is ${data.demand_side}.</div></div></div>` +
+
+      `<div style="display:flex;gap:10px;margin-top:16px">` +
+      [["funded, undelivered", c.funded_undelivered], ["demanded, unfunded", c.demanded_unfunded],
+       ["funded, not demanded", c.funded_not_demanded]]
+        .map(([k, v]) =>
+          `<div style="flex:1;padding:12px;border:1px solid var(--border,#e2dcc6);border-radius:8px">` +
+          `<div style="font-size:22px;font-weight:700">${v ?? 0}</div>` +
+          `<div style="font-size:11px;color:#888;text-transform:uppercase;letter-spacing:.04em">${k}</div></div>`).join("") +
+      `</div>` +
+
+      bucket("Funded but undelivered",
+        "money sanctioned, road not built, people still reporting",
+        data.funded_undelivered || [],
+        [...commonCols,
+         ["Undelivered works", (r) => A.fmt(r.undelivered_works || 0)],
+         ["Sanctioned, unspent", (r) => rupee(r.undelivered_cost_lakh)],
+         ["Oldest sanction", (r) => r.oldest_undelivered_year || "—"]]) +
+
+      bucket("Demanded but unfunded",
+        "complaints exist, no sanctioned work found nearby",
+        data.demanded_unfunded || [],
+        commonCols) +
+
+      bucket("Funded, not demanded",
+        "mechanism demo only while demand data is synthetic",
+        data.funded_not_demanded || [],
+        [...commonCols,
+         ["Undelivered works", (r) => A.fmt(r.undelivered_works || 0)],
+         ["Sanctioned, unspent", (r) => rupee(r.undelivered_cost_lakh)]]) +
+
+      `<div style="margin-top:20px;font-size:11px;color:#999">` +
+      `${data.unpinned_works} more sanctioned works could not be pinned to a village we know, ` +
+      `and are counted separately rather than dropped.</div>`;
+
+    document.getElementById("investClose").onclick = () => { host.hidden = true; };
+  }
+
   /* ------------------------------------------------------- run clustering -- */
 
   /**
@@ -341,6 +447,7 @@
     setupWhatIf();
 
     document.getElementById("btnCompare").addEventListener("click", openCompare);
+    document.getElementById("btnInvest").addEventListener("click", openInvestment);
 
 
     // Keep the worklist in step with the map, including navigations the map
@@ -351,6 +458,8 @@
       if (e.key === "Escape") {
         closeCompare();
         d3.select("#sheet").classed("sheet--open", false);
+        const inv = document.getElementById("investOverlay");
+        if (inv) inv.hidden = true;
       }
     });
 

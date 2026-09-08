@@ -22,6 +22,49 @@ from routes_citizen_report import serialize_citizen_request
 router = APIRouter()
 
 
+def _funding_warnings(evidence: dict | None) -> list[dict]:
+    """
+    Turn the already-computed 'sanctioned but undelivered' evidence into an
+    explicit flag on the recommendation itself (§10.2 feature #18).
+
+    recompute.py already records, on the infra_deficit term, how many PMGSY
+    works near this cluster were sanctioned and never delivered, their rupee
+    value and the oldest sanction year. That informed the score but never
+    surfaced as a caution -- so a cluster could be recommended for funding
+    without anyone being told money is already committed there. This reads
+    that evidence back out and says so, in words, with no new computation.
+    """
+    if not isinstance(evidence, dict):
+        return []
+    infra = evidence.get("infra_deficit")
+    if not isinstance(infra, dict):
+        return []
+    works = infra.get("undelivered_sanctioned_works") or 0
+    if not works:
+        return []
+    cost = infra.get("undelivered_sanctioned_cost_lakh")
+    oldest = infra.get("oldest_undelivered_sanction_year")
+    parts = [
+        f"{works} sanctioned PMGSY work{'s' if works != 1 else ''} near this "
+        f"cluster {'are' if works != 1 else 'is'} recorded as still undelivered"
+    ]
+    if cost:
+        parts.append(f"Rs {cost:,.2f} lakh already committed")
+    if oldest:
+        parts.append(f"oldest sanctioned in {oldest}")
+    return [
+        {
+            "type": "already_funded",
+            "severity": "caution",
+            "undelivered_works": works,
+            "undelivered_cost_lakh": cost,
+            "oldest_sanction_year": oldest,
+            "message": " - ".join(parts)
+            + ". Check delivery of the existing sanction before recommending new money.",
+        }
+    ]
+
+
 def _latest_score_by_cluster(db: Session) -> dict[int, PriorityScore]:
     latest: dict[int, PriorityScore] = {}
     for score in db.query(PriorityScore).all():
@@ -119,6 +162,15 @@ def get_cluster(cluster_id: int, db: Session = Depends(get_db)):
         except (TypeError, ValueError):
             evidence = None
     detail["evidence"] = evidence
+
+    # Which terms rested on real government records and which fell back to a
+    # proxy -- computed by scoring.py, now persisted in evidence, lifted here
+    # so a reader does not have to dig for it (§10.2 feature #3).
+    detail["data_basis"] = evidence.get("data_basis") if isinstance(evidence, dict) else None
+
+    # An explicit caution when money is already committed where this cluster
+    # would be recommended for more (§10.2 feature #18).
+    detail["warnings"] = _funding_warnings(evidence)
 
     # The specific things inside this cluster that are broken, so a crew can
     # be sent somewhere rather than to a district-wide average.

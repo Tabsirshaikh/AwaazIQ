@@ -546,6 +546,36 @@
     sl.append("span").attr("class", "sumline__l").text("Sum of all nine terms");
     sl.append("span").attr("class", "sumline__v").text(sum.toFixed(2));
 
+    /* -- why this ranks above the next cluster (§10.2 #16) -- */
+    // The engine already stores each cluster's runner-up; the term-by-term
+    // difference is just the same decomposition subtracted. No extra request.
+    const runner = c.runner_up_cluster_id != null
+      ? clusters.find((x) => x.id === c.runner_up_cluster_id)
+      : null;
+    if (runner && runner.breakdown) {
+      const rb = runner.breakdown;
+      const ahead = TERMS
+        .map(([k, label]) => ({ label, d: (b[k] || 0) - (rb[k] || 0) }))
+        .filter((x) => x.d > 0.3)
+        .sort((x, y) => y.d - x.d)
+        .slice(0, 3);
+      const rName = runner.block
+        || `${runner.district || "cluster"} #${runner.id}`;
+      sec.append("div").attr("class", "cfline")
+        .attr("style",
+          "margin-top:12px;padding:10px 12px;border-radius:8px;" +
+          "background:var(--cream-deep,#efeadd);font-size:11.5px;" +
+          "line-height:1.6;color:var(--navy,#1b2a4a)")
+        .html(
+          `<b>Why this outranks the next cluster.</b> Ahead of <b>${rName}</b> ` +
+          `(${runner.issue_category} · ${(runner.priority_score ?? 0).toFixed(2)})` +
+          (ahead.length
+            ? `, carried by ` + ahead
+                .map((x) => `${x.label.toLowerCase()} +${x.d.toFixed(2)}`)
+                .join(", ") + `.`
+            : ` on the combined terms — no single term decides it.`));
+    }
+
     /* -- column 2: which specific thing is broken -- */
     const mid = cols.append("div").attr("class", "dock__col");
     const facts = mid.append("div").attr("class", "facts");
@@ -616,8 +646,41 @@
     }
 
     const evidence = detail.evidence || {};
+
+    // §10.2 #18 -- a caution surfaced on the recommendation itself when money
+    // is already committed where this cluster would be funded again. Built by
+    // the API from evidence it had already computed; empty for most clusters.
+    const dockEl = d3.select("#dock");
+    dockEl.selectAll(".dock__warn").remove();
+    (detail.warnings || []).forEach((w) => {
+      dockEl.insert("div", ".dock__cols")
+        .attr("class", "dock__warn")
+        .attr("style",
+          "margin:0 0 10px;padding:9px 12px;border-radius:8px;font-size:12px;" +
+          "line-height:1.5;color:var(--body);background:rgba(203,120,20,.12);" +
+          "border:1px solid rgba(203,120,20,.45)")
+        .html(`<b>&#9888; Already funded here.</b> ${w.message}`);
+    });
+
+    // §10.2 #3 -- which terms rested on a real government record and which
+    // fell back to a proxy. scoring.py computed this; it is now persisted and
+    // returned, so a proxy no longer looks identical to a measurement.
+    const dataBasis = detail.data_basis || {};
+
     Object.entries(evTargets).forEach(([term, target]) => {
       target.html("");
+      const basis = dataBasis[term];
+      if (basis) {
+        const proxy = /^proxy|straight_line/.test(basis);
+        target.append("div")
+          .attr("style",
+            "font-size:10px;font-weight:700;letter-spacing:.05em;" +
+            "text-transform:uppercase;margin-bottom:5px;" +
+            `color:${proxy ? "#c47b14" : "#2e7d32"}`)
+          .text(proxy
+            ? "proxy — no government record for this term"
+            : "from a real record");
+      }
       renderEvidence(target, evidence[EVIDENCE_KEY[term]]);
       // The cost benchmark answers "and what would it cost?", which is the
       // question that follows "a scheme exists" -- so it rides along with

@@ -413,6 +413,12 @@ def recompute(db, verbose: bool = True) -> dict:
             reverse=True,
         )
         result["evidence"] = {
+            # Which source each term actually used -- real government records or
+            # the fallback proxy. score_cluster computed this to produce the
+            # number; before, it was dropped on the floor, so a score could be
+            # read but a reader could not tell which terms were guesses. Now it
+            # is persisted alongside the rest of the working (§10.2 feature #3).
+            "data_basis": result["data_basis"],
             "demand": {
                 "distinct_reporters": cluster.unique_reporters,
                 "total_reports": len(members),
