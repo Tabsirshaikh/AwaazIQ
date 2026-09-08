@@ -446,3 +446,71 @@ class UserSession(Base):
     user_id = Column(Integer, ForeignKey("citizen_user.id"), nullable=False)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     expires_at = Column(DateTime, nullable=True)
+
+
+class LgdVillage(Base):
+    """
+    The official administrative hierarchy for one village, from the Local
+    Government Directory (Ministry of Panchayati Raj).
+
+    WHY THIS TABLE EXISTS
+    ---------------------
+    `gazetteer.block` was never an official fact. It came from a nearest-
+    taluka-headquarters geometric guess, which the README has always flagged
+    as "a geometric approximation, not official boundary data". Measured
+    against LGD, that guess agrees with the official taluka for 58% of our
+    villages and with the official development block for 48% -- it sits
+    between two genuinely different administrative units without being either.
+
+    That matters because block is not cosmetic: it labels clusters, groups
+    the worklist, and is what an official reads as the unit of responsibility.
+    A wrong block sends a work order to the wrong office.
+
+    LGD settles it. Taluka (subdistrict) and development block are recorded
+    separately here, because in India they are separate divisions that often
+    but not always coincide -- collapsing them is the mistake that produced
+    the ambiguity in the first place.
+
+    CENSUS CODES ARE THE POINT
+    --------------------------
+    Every level carries its Census 2011 code. That is the join key this
+    project has never had: `village_amenities` came from the Census, PMGSY
+    carries block ids, and until now the only thing connecting any of them to
+    our gazetteer was fuzzy name matching. A code is not a guess.
+
+    gazetteer_id is nullable on purpose: LGD holds every village in the two
+    pilot districts, including ones our gazetteer does not, and dropping them
+    would throw away the hierarchy a future gazetteer row could join to.
+    """
+
+    __tablename__ = "lgd_village"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+
+    # Our village, where a match was established. NULL means LGD knows this
+    # village but our gazetteer does not (yet).
+    gazetteer_id = Column(Integer, ForeignKey("gazetteer.id"), index=True)
+    match_score = Column(Float)        # fuzzy score, same scale as village_amenities
+
+    # village
+    lgd_village_code = Column(Text, index=True)
+    village_name = Column(Text)
+    census_2011_village_code = Column(Text, index=True)
+
+    # taluka / tehsil / sub-district
+    lgd_subdistrict_code = Column(Text)
+    subdistrict_name = Column(Text)
+    census_2011_subdistrict_code = Column(Text)
+
+    # development block -- a DIFFERENT unit from the taluka above
+    lgd_block_code = Column(Text, index=True)
+    block_name = Column(Text)
+
+    # district / state
+    lgd_district_code = Column(Text)
+    district_name = Column(Text)
+    census_2011_district_code = Column(Text)
+    lgd_state_code = Column(Text)
+    state_name = Column(Text)
+
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))

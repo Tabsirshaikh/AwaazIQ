@@ -613,3 +613,84 @@ Coverage after §7.1–7.3, measured over work groups:
 | Health | 68 / 126 | 30 |
 | Road | 13 / 108 | 11 |
 | Water | 0 / 120 | 0 (no register exists) |
+
+
+---
+
+## §8. LGD administrative hierarchy — LOADED
+
+The item that sat at the top of §6's build order ("LGD loader — official block
+hierarchy first; everything joins on it") and was never built. Now is.
+
+### 8.1 Source
+
+`github.com/ramSeraph/opendata`, release `lgd-latest` →
+`villages_by_blocks.<DDMonYYYY>.csv.7z` (~10 MB compressed, 90 MB CSV) — a
+**daily** mirror of LGD's own bulk exports. Chosen over `lgdirectory.gov.in`,
+which serves these only through an interactive session, and over
+`data.gov.in`, which catalogues LGD but refreshes monthly.
+
+`villages_by_blocks` is the one file worth having: state → district →
+sub-district → development block → village **plus the Census 2011 code at
+every level**, on a single row.
+
+The filename carries a date and the release keeps ~156 of them, so the loader
+resolves the newest from the GitHub API at run time. A pinned date would rot
+within weeks. Loader: `backend/load_lgd_hierarchy.py` → `lgd_village`.
+
+Two practical traps, both hit during this pass: GitHub throttles release
+downloads that send no `User-Agent` (it times out rather than failing fast),
+and `.7z` needs `py7zr` — no 7-Zip CLI is present on this machine.
+
+### 8.2 What it settles: `gazetteer.block` was never official
+
+`block` came from a nearest-taluka-HQ geometric guess, which the README has
+always flagged as "a geometric approximation, not official boundary data."
+Measured against LGD, it is not reliably *either* administrative unit:
+
+| Our `block` agrees with | Share of matched villages |
+|---|---|
+| LGD **sub-district** (taluka) | 549 / 939 (58%) |
+| LGD **development block** | 447 / 939 (48%) |
+
+Taluka and development block are **different divisions** in India that often
+but not always coincide. `lgd_village` stores them separately; collapsing them
+is what produced the ambiguity.
+
+### 8.3 The matching problem, and why the honest number is smaller
+
+First attempt matched LGD → gazetteer by name and reported **703 corrections**.
+That number was wrong and was thrown away.
+
+**Village names repeat relentlessly.** "Pimpalgaon" occurs in *nine different
+talukas of Nashik district alone*, every one scoring 100 on the name. Matching
+in that direction attached whichever copy the scorer returned first, then
+published its taluka as the official correction — worse than the geometric
+guess it replaced, because the guess at least used coordinates.
+
+LGD carries no lat/lon, and neither `gazetteer` nor `village_amenities` stores
+a Census village code, so nothing remains to disambiguate a repeated name.
+A link is therefore asserted **only when unambiguous, in both directions** —
+one taluka tops the score, and no other gazetteer village claims that same LGD
+row. Same rule as work-group asset naming.
+
+| Result | Count |
+|---|---|
+| LGD villages loaded (complete hierarchy, both districts) | **3,174** |
+| Unambiguously linked to a gazetteer village | **656** |
+| Left unlinked — name matches several talukas | 283 |
+| **Of the linked, our geometric block disagrees with the official taluka** | **197 (30%)** |
+
+Roughly one in three of our block labels was wrong, established only over
+villages where the identity is certain.
+
+### 8.4 Not yet applied
+
+`gazetteer.block` is **not** overwritten. Doing so relabels 197 villages and
+shifts the block shown on every affected cluster — a visible behavioural
+change that deserves to be a deliberate decision, not a side effect of a
+loader run. The corrected hierarchy is available in `lgd_village` for whoever
+takes that step.
+
+Still open: whether PMGSY's `BLOCK_ID` joins to `lgd_block_code`. If it does,
+that is the missing key for `pmgsy_road_category` (still 0/942, §5.5).
