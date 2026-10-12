@@ -3,21 +3,8 @@
 > **From Citizen Voice to Evidence-Backed Public Action**  
 > AwaazIQ bridges the gap between rural citizens and public administration by converting unstructured, multilingual complaints into prioritized, fraud-verified, and budget-optimized civic action.
 
-[![Deployment Vercel](https://img.shields.io/badge/Frontend-Vercel-black?style=flat&logo=vercel)](https://frontend-psi-seven-99.vercel.app/)
-[![Deployment Railway](https://img.shields.io/badge/API-Railway-0B0D0E?style=flat&logo=railway)](https://idk-production-2d30.up.railway.app/docs)
 [![Python FastAPI](https://img.shields.io/badge/Backend-FastAPI-009688?style=flat&logo=fastapi)](https://fastapi.tiangolo.com/)
 [![YOLOv8](https://img.shields.io/badge/Vision-YOLOv8-blue)](https://ultralytics.com/)
-
----
-
-## 🔗 Live Deployment
-
-| Service | Access Link | Description |
-| :--- | :--- | :--- |
-| **Officials Dashboard** | [https://frontend-psi-seven-99.vercel.app/](https://frontend-psi-seven-99.vercel.app/) | Geo-spatial cluster map, village priority rankings, asset detail docks & explainers |
-| **Citizen Intake Portal** | [https://frontend-psi-seven-99.vercel.app/report.html](https://frontend-psi-seven-99.vercel.app/report.html) | Vernacular voice/text reporting, interactive GPS pin picker & authenticated camera capture |
-| **Photo Verification Lab** | [https://frontend-psi-seven-99.vercel.app/photo-lab.html](https://frontend-psi-seven-99.vercel.app/photo-lab.html) | Interactive suite for testing computer vision & anti-fraud defense on evidence photos |
-| **Backend API Docs** | [https://idk-production-2d30.up.railway.app/docs](https://idk-production-2d30.up.railway.app/docs) | Interactive OpenAPI / Swagger documentation |
 
 ---
 
