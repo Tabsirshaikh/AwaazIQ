@@ -29,3 +29,17 @@ backend/data/*.shx
 backend/data/*.prj
 backend/data/*.cpg
 backend/data/*.qpj
+
+# Tools and archives
+tools/
+*.zip
+.vscode/
+.mcp.json
+backend/jjm_water_testing_cache.json
+
+# Remotion dependencies and heavy renders
+node_modules/
+remotion/node_modules/
+remotion/out/
+remotion/public/*.mp4
+remotion/public/*.mkv

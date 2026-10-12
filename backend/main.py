@@ -9,6 +9,7 @@ if str(_REPO_ROOT) not in sys.path:
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 import models
 from database import Base, engine
@@ -19,7 +20,6 @@ from routes_citizen_report import router as citizen_report_router
 from routes_dashboard import router as dashboard_router
 from routes_intelligence import router as intelligence_router
 from routes_photo_checks import router as photo_checks_router
-from routes_test import router as test_router
 from routes_villages import router as villages_router
 
 app = FastAPI()
@@ -38,7 +38,13 @@ app.include_router(intelligence_router)
 app.include_router(gazetteer_router)
 app.include_router(villages_router)
 app.include_router(photo_checks_router)
-app.include_router(test_router)
+
+# The phone demo is served from the API host as well. This gives ngrok one
+# HTTPS origin for the page and its API calls, which browser permission APIs
+# (GPS, camera and notifications) require on mobile.
+_FRONTEND_DIR = _REPO_ROOT / "frontend"
+if _FRONTEND_DIR.is_dir():
+    app.mount("/app", StaticFiles(directory=str(_FRONTEND_DIR), html=True), name="phone-demo")
 
 
 @app.on_event("startup")

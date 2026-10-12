@@ -356,16 +356,15 @@ def resolve_picked_location(db: Session, district: str, block: str, village: str
     }
 
 
-def _validate_pin(
-    form, village_lat: float, village_lon: float
-) -> tuple[float | None, float | None]:
+def _validate_pin(form) -> tuple[float | None, float | None]:
     """
-    Parse and validate the citizen's GPS pin against the picked village.
+    Parse and validate the citizen's GPS pin.
 
     Both report_lat and report_lon must be present, finite (not NaN/Inf),
-    and within PIN_MAX_DISTANCE_KM of the village centroid returned by
-    resolve_picked_location().  Otherwise both are dropped -- a partial,
-    non-numeric, NaN or impossibly distant pin is never stored.
+    The prototype deliberately accepts a valid pin anywhere. The selected
+    village still supplies administrative routing, while the pin records
+    where the phone is now. A partial, non-numeric, non-finite, or
+    out-of-range coordinate is never stored.
 
     This runs ONLY on the intake (village-picked) form path.  The JSON
     ingest path never calls it, so seeding scripts are unaffected.
@@ -382,7 +381,7 @@ def _validate_pin(
     if not (math.isfinite(lat) and math.isfinite(lon)):
         return None, None
 
-    if haversine_km(lat, lon, village_lat, village_lon) > config.PIN_MAX_DISTANCE_KM:
+    if not (-90 <= lat <= 90 and -180 <= lon <= 180):
         return None, None
 
     return lat, lon
@@ -565,14 +564,12 @@ async def create_citizen_report(request: Request, db: Session = Depends(get_db))
             location_resolved = resolve_picked_location(
                 db, intake["district"], intake["block"], intake["village"]
             )
-            # Validate optional citizen-supplied GPS pin against village centroid.
-            # Kept strictly to the intake path; dropped if non-finite or >5km.
-            if location_resolved.get("lat") is not None and location_resolved.get("lon") is not None:
-                precise_lat, precise_lon = _validate_pin(
-                    form, location_resolved["lat"], location_resolved["lon"]
-                )
-                if precise_lat is not None and precise_lon is not None:
-                    pin_source = "citizen_gps"
+            # Prototype mode accepts a valid phone GPS pin even when it is
+            # not near the selected pilot village. The village remains the
+            # administrative routing and dashboard grouping location.
+            precise_lat, precise_lon = _validate_pin(form)
+            if precise_lat is not None and precise_lon is not None:
+                pin_source = "citizen_gps"
             # Parse and validate optional citizen-selected facility (intake path only).
             facility_id = None
             raw_fac = _clean(form, "facility_id")
